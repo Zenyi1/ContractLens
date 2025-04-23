@@ -1,16 +1,23 @@
 import os
 import uuid
+import traceback
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import Response, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from .process import extract_text, transform_clauses, compute_diffs, annotate_pdf
+from dotenv import load_dotenv
+from process import extract_text, transform_clauses, compute_diffs, annotate_pdf, process_documents_sync
+import base64
+
+# Load environment variables from .env file if not in Docker
+if not os.getenv("DOCKER_ENVIRONMENT"):
+    load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
 
 app = FastAPI()
 
-# Configure CORS
+# Configure CORS for both Docker and local development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -18,7 +25,10 @@ app.add_middleware(
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    return {
+        "status": "healthy",
+        "environment": "docker" if os.getenv("DOCKER_ENVIRONMENT") else "local"
+    }
 
 @app.post("/process")
 async def process_documents(
@@ -41,28 +51,26 @@ async def process_documents(
             f.write(await buyer_tc.read())
 
         # Process the documents
-        seller_text = extract_text(seller_path)
-        buyer_text = extract_text(buyer_path)
-        transformed_text = transform_clauses(buyer_text, seller_text)
-        diffs = compute_diffs(seller_text, transformed_text)
-        annotated_pdf = annotate_pdf(seller_path, diffs)
+        annotated_pdf, change_summary = process_documents_sync(buyer_path, seller_path)
 
         # Clean up temporary files
         os.remove(seller_path)
         os.remove(buyer_path)
         os.rmdir(tmp_dir)
 
-        # Return the annotated PDF
-        return Response(
-            content=annotated_pdf,
-            media_type="application/pdf",
-            headers={
-                "Content-Disposition": "attachment; filename=annotated.pdf"
+        # Return both the PDF and summary
+        return JSONResponse(
+            content={
+                "pdf": base64.b64encode(annotated_pdf).decode('utf-8'),
+                "summary": change_summary
             }
         )
 
     except Exception as e:
+        print(f"Error processing documents: {str(e)}")
+        print("Full traceback:")
+        print(traceback.format_exc())
         return JSONResponse(
             status_code=500,
-            content={"error": str(e)}
+            content={"error": str(e), "traceback": traceback.format_exc()}
         ) 
