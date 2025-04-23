@@ -8,6 +8,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import io
 import json
+import time
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
 
@@ -25,8 +26,15 @@ def extract_text(pdf_path: str) -> str:
     """Extract text content from a PDF file."""
     text = ""
     with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages:
-            text += page.extract_text() + "\n"
+        print(f"Processing PDF with {len(pdf.pages)} pages")
+        for page_num, page in enumerate(pdf.pages, 1):
+            page_text = page.extract_text()
+            if page_text:
+                text += page_text + "\n"
+                print(f"Extracted {len(page_text)} characters from page {page_num}")
+            else:
+                print(f"Warning: No text extracted from page {page_num}")
+    print(f"Total extracted text length: {len(text)} characters")
     return text
 
 def preprocess_text(text: str) -> str:
@@ -44,17 +52,23 @@ def split_into_chunks(text: str, max_tokens: int = 3000) -> list[str]:
     chunks = []
     current_chunk = ""
     
+    print(f"\nSplitting text of length {len(text)} into chunks")
+    print(f"Target chunk size: {chunk_size} characters")
+    
     # Split by sections (assuming sections are separated by multiple newlines)
     sections = text.split('\n\n')
+    print(f"Found {len(sections)} sections")
     
-    for section in sections:
+    for section_num, section in enumerate(sections, 1):
         if len(current_chunk) + len(section) < chunk_size:
             current_chunk += section + '\n\n'
         else:
             if current_chunk:
+                print(f"Created chunk {len(chunks) + 1} with {len(current_chunk)} characters")
                 chunks.append(current_chunk.strip())
             # If a single section is too large, split it by sentences
             if len(section) > chunk_size:
+                print(f"Section {section_num} is too large ({len(section)} chars), splitting by sentences")
                 sentences = section.split('. ')
                 current_chunk = ""
                 for sentence in sentences:
@@ -62,13 +76,21 @@ def split_into_chunks(text: str, max_tokens: int = 3000) -> list[str]:
                         current_chunk += sentence + '. '
                     else:
                         if current_chunk:
+                            print(f"Created chunk {len(chunks) + 1} with {len(current_chunk)} characters")
                             chunks.append(current_chunk.strip())
                         current_chunk = sentence + '. '
             else:
                 current_chunk = section + '\n\n'
     
     if current_chunk:
+        print(f"Created final chunk {len(chunks) + 1} with {len(current_chunk)} characters")
         chunks.append(current_chunk.strip())
+    
+    print(f"Total chunks created: {len(chunks)}")
+    total_chars = sum(len(chunk) for chunk in chunks)
+    print(f"Total characters in all chunks: {total_chars}")
+    print(f"Original text length: {len(text)}")
+    print(f"Character difference: {len(text) - total_chars}")
     
     return chunks
 
@@ -79,14 +101,14 @@ def transform_clauses(buyer_text: str, seller_text: str) -> str:
         buyer_text = preprocess_text(buyer_text)
         seller_text = preprocess_text(seller_text)
         
-        print(f"Buyer text length after preprocessing: {len(buyer_text)} characters")
+        print(f"\nBuyer text length after preprocessing: {len(buyer_text)} characters")
         print(f"Seller text length after preprocessing: {len(seller_text)} characters")
         
         # Split texts into chunks
         buyer_chunks = split_into_chunks(buyer_text, max_tokens=3000)
         seller_chunks = split_into_chunks(seller_text, max_tokens=3000)
         
-        print(f"Split into {len(buyer_chunks)} buyer chunks and {len(seller_chunks)} seller chunks")
+        print(f"\nSplit into {len(buyer_chunks)} buyer chunks and {len(seller_chunks)} seller chunks")
         
         transformed_chunks = []
         max_retries = 3
@@ -94,8 +116,9 @@ def transform_clauses(buyer_text: str, seller_text: str) -> str:
         
         # Process each chunk with retry logic
         for i, (buyer_chunk, seller_chunk) in enumerate(zip(buyer_chunks, seller_chunks)):
-            print(f"Processing chunk {i+1}/{len(buyer_chunks)}")
-            print(f"Chunk sizes - Buyer: {len(buyer_chunk)}, Seller: {len(seller_chunk)}")
+            print(f"\nProcessing chunk {i+1}/{len(buyer_chunks)}")
+            print(f"Buyer chunk size: {len(buyer_chunk)} characters")
+            print(f"Seller chunk size: {len(seller_chunk)} characters")
             
             for attempt in range(max_retries):
                 try:
@@ -131,26 +154,98 @@ For each significant clause, analyze:
    - What exact wording should be used?
 
 KEY AREAS TO FOCUS ON:
-1. Payment Terms:
+
+1. Contract Basics:
+   - Parties and their roles
+   - Effective date and term
+   - Equipment description and specifications
+   - Rental period and extensions
+
+2. Payment Terms:
+   - Rental rates and payment schedule
    - Standard payment periods (e.g., "120 days is unacceptable; must be 30 days")
-   - Late payment penalties
-   - Security deposits
+   - Late payment penalties and interest
+   - Security deposits and advance payments
+   - Tax responsibilities
+   - Currency and payment method
+   - Batch payment scheduling (monthly/quarterly)
+   - Payment term implications (e.g., 120-day terms)
 
-2. Equipment Control:
+3. Equipment Control:
    - Ownership retention
-   - Inspection rights
+   - Inspection rights and frequency
    - Maintenance responsibilities
-   - Return conditions
+   - Return conditions and timing
+   - Equipment modifications restrictions
+   - Location restrictions
+   - Access and monitoring rights
 
-3. Liability:
+4. Liability and Insurance:
    - Damage responsibility
-   - Insurance requirements
-   - Indemnification
+   - Insurance requirements and coverage
+   - Professional liability insurance ($1,000,000 requirement)
+   - Indemnification clauses
+   - Force majeure provisions
+   - Limitation of liability
+   - Warranty disclaimers
 
-4. Usage Terms:
-   - Authorized users
+5. Usage Terms:
+   - Authorized users and operators
    - Usage restrictions
    - Training requirements
+   - Safety protocols
+   - Environmental compliance
+   - Reporting requirements
+
+6. Default and Remedies:
+   - Events of default
+   - Cure periods
+   - Seller's remedies
+   - Equipment repossession rights
+   - Damages and penalties
+   - Termination cost calculation
+   - Buyer's sole discretion in termination
+   - Documentation requirements (30-day window)
+
+7. Intellectual Property and Licensing:
+   - IP rights and ownership
+   - Source code delivery requirements
+   - Sublicensing rights and restrictions
+   - Open-source component usage
+   - Software licenses
+   - Data ownership
+   - Confidentiality
+   - Proprietary rights
+
+8. Tooling and Support:
+   - Long-term support obligations
+   - Replacement parts availability (5-year post-production)
+   - Tooling maintenance and support
+   - Spare parts inventory requirements
+   - Technical support terms
+
+9. Delivery and Transfer:
+   - Incoterms 2020 application
+   - Title transfer points
+   - Delivery responsibilities
+   - Shipping and handling terms
+   - Risk of loss provisions
+
+10. Financial Security:
+    - Parent company guaranty requirements
+    - Financial condition triggers
+    - Security for payment
+    - Credit requirements
+    - Financial reporting obligations
+
+11. General Provisions:
+    - Assignment and transfer restrictions
+    - Governing law and jurisdiction
+    - Dispute resolution
+    - Notices and communications
+    - Entire agreement clause
+    - Severability
+    - Waivers
 
 FORMAT REQUIREMENTS:
 - Use clear, numbered sections
@@ -197,11 +292,11 @@ Provide a detailed analysis of all significant differences, focusing on protecti
                     )
                     transformed_chunks.append(response.choices[0].message.content)
                     print(f"Successfully processed chunk {i+1}")
+                    print(f"Response length: {len(response.choices[0].message.content)} characters")
                     break  # Success, exit retry loop
                 except Exception as e:
                     if "rate_limit_exceeded" in str(e) and attempt < max_retries - 1:
                         print(f"Rate limit hit, waiting {retry_delay} seconds before retry {attempt + 1}")
-                        import time
                         time.sleep(retry_delay)
                         retry_delay *= 2  # Exponential backoff
                     else:
@@ -210,12 +305,11 @@ Provide a detailed analysis of all significant differences, focusing on protecti
             
             # Add a small delay between chunks to avoid rate limits
             if i < len(buyer_chunks) - 1:
-                import time
                 time.sleep(2)  # Reduced delay between chunks
         
         # Combine all transformed chunks
         result = "\n\n".join(transformed_chunks)
-        print(f"Transformation complete. Final text length: {len(result)} characters")
+        print(f"\nTransformation complete. Final text length: {len(result)} characters")
         return result
     except Exception as e:
         print(f"Final error: {str(e)}")
