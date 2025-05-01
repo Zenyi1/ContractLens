@@ -1,0 +1,13 @@
+{
+  "/blog/page": "app/blog/page.js",
+  "/changelog/page": "app/changelog/page.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/features/page": "app/features/page.js",
+  "/page": "app/page.js",
+  "/pricing/page": "app/pricing/page.js",
+  "/careers/page": "app/careers/page.js",
+  "/demo/page": "app/demo/page.js",
+  "/icon.png/route": "app/icon.png/route.js",
+  "/log-in/page": "app/log-in/page.js",
+  "/compare/page": "app/compare/page.js"
+}

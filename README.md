@@ -12,7 +12,8 @@ A web application that processes and compares Terms & Conditions documents using
 
 ## Prerequisites
 
-- Docker and Docker Compose
+- Node.js (v16 or higher)
+- Python 3.8 or higher
 - OpenAI API Key
 
 ## Setup
@@ -23,12 +24,23 @@ A web application that processes and compares Terms & Conditions documents using
    OPENAI_API_KEY=your_api_key_here
    ```
 
-3. Build and start the services:
+3. Backend Setup:
    ```bash
-   docker-compose up --build
+   cd backend
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   pip install -r requirements.txt
+   uvicorn main:app --reload
    ```
 
-4. Access the application at http://localhost:3000
+4. Frontend Setup:
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
+
+5. Access the application at http://localhost:3000
 
 ## Development
 
