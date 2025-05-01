@@ -4,6 +4,9 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { useAuth } from './AuthContext'
 import { supabase } from '@/utils/supabase'
 
+// Get API URL from environment variable or use a fallback
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://your-deployed-backend-url.com';
+
 export type CompanyDetails = {
   name: string
   description?: string
@@ -36,8 +39,8 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     const fetchCompanyDetails = async () => {
       setIsLoading(true)
       try {
-        // Use backend API instead of direct Supabase access
-        const response = await fetch('http://localhost:8000/company-profiles/me', {
+        // Use backend API with configurable URL
+        const response = await fetch(`${API_URL}/company-profiles/me`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${session?.access_token}`,
@@ -81,8 +84,8 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     if (!user || !session) return
 
     try {
-      // Use backend API instead of direct Supabase access
-      const response = await fetch('http://localhost:8000/company-profiles', {
+      // Use backend API with configurable URL
+      const response = await fetch(`${API_URL}/company-profiles`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,

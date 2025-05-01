@@ -29,3 +29,5 @@ yarn-error.log*
 # Project specific
 /tmp/
 *.pdf 
+
+.next/

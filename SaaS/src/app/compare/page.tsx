@@ -8,6 +8,9 @@ import { useCompany } from '@/context/CompanyContext';
 import { supabase } from '@/utils/supabase';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
 
+// Get API URL from environment variable or use a fallback
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://your-deployed-backend-url.com';
+
 export default function ComparePage() {
   const [sellerFile, setSellerFile] = useState<File | null>(null);
   const [buyerFile, setBuyerFile] = useState<File | null>(null);
@@ -15,6 +18,7 @@ export default function ComparePage() {
   const [result, setResult] = useState<{ summary: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const router = useRouter();
   const { session } = useAuth();
   const { company, isLoading: isCompanyLoading } = useCompany();
@@ -53,7 +57,7 @@ export default function ComparePage() {
       formData.append('seller_tc', sellerFile);
       formData.append('buyer_tc', buyerFile);
 
-      const response = await fetch('http://localhost:8000/process', {
+      const response = await fetch(`${API_URL}/process`, {
         method: 'POST',
         body: formData,
         headers: {

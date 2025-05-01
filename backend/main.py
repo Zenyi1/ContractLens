@@ -110,6 +110,8 @@ origins = [
     "http://localhost",
     "http://localhost:3000",  # Typical React frontend
     "http://localhost:8000",
+    "https://tcs-theta-snowy.vercel.app/",
+    "https://tcs-theta-snowy.vercel.app",  # Without trailing slash
     "*",  # Allow all origins (for development only)
 ]
 
