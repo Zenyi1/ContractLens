@@ -10,6 +10,7 @@ import io
 import json
 import time
 from io import BytesIO
+import tempfile
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
 
@@ -23,18 +24,19 @@ if "OPENAI_API_KEY" in os.environ:
 # Initialize OpenAI client with explicit configuration
 client = OpenAI()
 
-def extract_text(pdf_path: str) -> str:
-    """Extract text content from a PDF file."""
+def extract_text(pdf_content: bytes) -> str:
+    """Extract text content from PDF bytes."""
     text = ""
-    with pdfplumber.open(pdf_path) as pdf:
-        print(f"Processing PDF with {len(pdf.pages)} pages")
-        for page_num, page in enumerate(pdf.pages, 1):
-            page_text = page.extract_text()
-            if page_text:
-                text += page_text + "\n"
-                print(f"Extracted {len(page_text)} characters from page {page_num}")
-            else:
-                print(f"Warning: No text extracted from page {page_num}")
+    with io.BytesIO(pdf_content) as pdf_bytes:
+        with pdfplumber.open(pdf_bytes) as pdf:
+            print(f"Processing PDF with {len(pdf.pages)} pages")
+            for page_num, page in enumerate(pdf.pages, 1):
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text + "\n"
+                    print(f"Extracted {len(page_text)} characters from page {page_num}")
+                else:
+                    print(f"Warning: No text extracted from page {page_num}")
     print(f"Total extracted text length: {len(text)} characters")
     return text
 
@@ -95,7 +97,7 @@ def split_into_chunks(text: str, max_tokens: int = 3000) -> list[str]:
     
     return chunks
 
-def transform_clauses(buyer_text: str, seller_text: str) -> str:
+def transform_clauses(buyer_text: str, seller_text: str, company_name: str = "Seller") -> str:
     """Transform buyer's clauses to align with seller's model using GPT-3.5-turbo."""
     try:
         # Preprocess texts to reduce token count
@@ -128,24 +130,24 @@ def transform_clauses(buyer_text: str, seller_text: str) -> str:
                         messages=[
                             {
                                 "role": "system",
-                                "content": """You are an expert legal counsel specializing in equipment rental agreements. You represent the equipment owner/lessor (the Seller) who is renting out specialized equipment to customers (the Buyer). Your primary responsibility is to protect the Seller's interests and ensure the rental agreement properly reflects the rental nature of the transaction.
+                                "content": f"""You are an expert legal counsel specializing in equipment rental agreements. You represent the equipment owner/lessor (the {company_name}) who is renting out specialized equipment to customers (the Buyer). Your primary responsibility is to protect the {company_name}'s interests and ensure the rental agreement properly reflects the rental nature of the transaction.
 
 CRITICAL CONTEXT:
 - This is a RENTAL agreement, not a sale
-- The Seller owns and maintains the equipment
+- The {company_name} owns and maintains the equipment
 - The Buyer is renting the equipment for temporary use
-- The Seller must be protected from misuse, damage, and non-payment
-- The Seller must maintain control over the equipment at all times
+- The {company_name} must be protected from misuse, damage, and non-payment
+- The {company_name} must maintain control over the equipment at all times
 
 ANALYSIS FRAMEWORK:
 For each significant clause, analyze:
 1. CURRENT SITUATION:
    - What does the Buyer's clause say?
-   - What does the Seller's clause say?
+   - What does the {company_name}'s clause say?
    - Where exactly is the misalignment?
 
 2. IMPACT ANALYSIS:
-   - Why is this difference problematic for the Seller?
+   - Why is this difference problematic for the {company_name}?
    - What specific risks does it create?
    - What could go wrong if this isn't fixed?
 
@@ -201,7 +203,7 @@ KEY AREAS TO FOCUS ON:
 6. Default and Remedies:
    - Events of default
    - Cure periods
-   - Seller's remedies
+   - {company_name}'s remedies
    - Equipment repossession rights
    - Damages and penalties
    - Termination cost calculation
@@ -253,7 +255,7 @@ FORMAT REQUIREMENTS:
 - Be specific about clause locations
 - Provide exact wording for changes
 - Explain the business rationale
-- Focus on protecting the Seller's interests
+- Focus on protecting the {company_name}'s interests
 
 EXAMPLE FORMAT:
 ---
@@ -262,30 +264,30 @@ Location: Section 4.2
 
 CURRENT SITUATION:
 Buyer's Version: "Payment shall be made within 120 days of invoice"
-Seller's Version: "Payment shall be made within 30 days of invoice"
+{company_name}'s Version: "Payment shall be made within 30 days of invoice"
 
 IMPACT ANALYSIS:
-- 120-day payment term creates significant cash flow issues for Seller
+- 120-day payment term creates significant cash flow issues for {company_name}
 - Increases risk of non-payment
 - Not standard in equipment rental industry
-- Could impact Seller's ability to maintain equipment fleet
+- Could impact {company_name}'s ability to maintain equipment fleet
 
 RECOMMENDED SOLUTION:
 Change to: "Payment shall be made within 30 days of invoice. Late payments shall incur interest at 1.5% per month."
-Rationale: Standard rental industry practice, protects Seller's cash flow, provides incentive for timely payment.
+Rationale: Standard rental industry practice, protects {company_name}'s cash flow, provides incentive for timely payment.
 ---"""
                             },
                             {
                                 "role": "user",
-                                "content": f"""Please analyze these contract sections with the above framework. Focus on protecting the Seller's interests in this equipment rental agreement.
+                                "content": f"""Please analyze these contract sections with the above framework. Focus on protecting the {company_name}'s interests in this equipment rental agreement.
 
-SELLER'S TERMS (Equipment Owner/Lessor):
+{company_name.upper()}'S TERMS (Equipment Owner/Lessor):
 {seller_chunk}
 
 BUYER'S TERMS (Equipment Renter):
 {buyer_chunk}
 
-Provide a detailed analysis of all significant differences, focusing on protecting the Seller's interests in this rental arrangement."""
+Provide a detailed analysis of all significant differences, focusing on protecting the {company_name}'s interests in this rental arrangement."""
                             }
                         ],
                         temperature=0.1,  # Lower temperature for more consistent output
@@ -316,8 +318,12 @@ Provide a detailed analysis of all significant differences, focusing on protecti
         print(f"Final error: {str(e)}")
         raise Exception(f"Error in GPT-3.5-turbo transformation: {str(e)}")
 
-def generate_change_summary(buyer_text: str, transformed_text: str) -> str:
+def generate_change_summary(buyer_text: str, transformed_text: str, company_name: str = "Seller") -> str:
     """Generate a human-readable summary of the legal differences."""
+    # Replace any remaining "Seller" references with company name
+    transformed_text = transformed_text.replace("Seller's", f"{company_name}'s")
+    transformed_text = transformed_text.replace("Seller ", f"{company_name} ")
+    
     # The transformed text now contains a structured analysis
     # We'll format it to highlight the key points while preserving the structure
     
@@ -337,21 +343,19 @@ def generate_change_summary(buyer_text: str, transformed_text: str) -> str:
         return transformed_text
     
     # Add a header and combine the sections
-    return "=== CONTRACT ANALYSIS REPORT ===\n" + "\n".join(formatted_sections)
+    return f"=== CONTRACT ANALYSIS REPORT FOR {company_name.upper()} ===\n" + "\n".join(formatted_sections)
 
-def process_documents_sync(buyer_path: str, seller_path: str) -> tuple[bytes, str]:
-    """Process documents and return both annotated PDF and change summary."""
-    seller_text = extract_text(seller_path)
-    buyer_text = extract_text(buyer_path)
-    transformed_text = transform_clauses(buyer_text, seller_text)
-    change_summary = generate_change_summary(buyer_text, transformed_text)
+def process_documents_sync(seller_text: str, buyer_text: str, seller_filename: str, buyer_filename: str, company_name: str = "Seller") -> dict:
+    """Process documents synchronously and return the summary."""
+    print(f"Processing documents: {buyer_filename} and {seller_filename} for {company_name}")
     
-    # Create an in-memory blank PDF for now (just to make the function work)
-    # In a real implementation, you would call your PDF annotation function here
-    buffer = BytesIO()
-    c = canvas.Canvas(buffer)
-    c.drawString(100, 750, "Placeholder Annotated PDF")
-    c.save()
-    annotated_pdf = buffer.getvalue()
+    # Transform buyer's contract
+    transformed_text = transform_clauses(buyer_text, seller_text, company_name)
     
-    return annotated_pdf, change_summary 
+    # Generate changes summary
+    summary = generate_change_summary(buyer_text, transformed_text, company_name)
+    
+    # Return just the summary without PDF content
+    return {
+        "summary": summary
+    } 

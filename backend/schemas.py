@@ -5,30 +5,41 @@ from pydantic import BaseModel, EmailStr, Field
 # User schemas
 class UserBase(BaseModel):
     email: EmailStr
-    username: str
-    is_admin: bool = False
+    username: Optional[str] = None
 
 class UserCreate(UserBase):
     password: str
-    company_id: Optional[str] = None
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
 
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     username: Optional[str] = None
     password: Optional[str] = None
-    is_active: Optional[bool] = None
-    is_admin: Optional[bool] = None
-    company_id: Optional[str] = None
 
-class UserResponse(UserBase):
+class User(UserBase):
     id: str
-    is_active: bool
     created_at: datetime
-    updated_at: Optional[datetime] = None
-    company_id: Optional[str] = None
 
     class Config:
         orm_mode = True
+
+# Authentication schemas
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    refresh_token: Optional[str] = None
+    expires_in: Optional[int] = None
+    user: Optional[dict] = None
+
+class TokenData(BaseModel):
+    email: Optional[str] = None
+
+# Process response schema
+class ProcessResponse(BaseModel):
+    summary: str
 
 # Company profile schemas
 class CompanyProfileBase(BaseModel):
@@ -94,12 +105,4 @@ class AnalysisHistoryResponse(AnalysisHistoryBase):
     user_id: str
 
     class Config:
-        orm_mode = True
-
-# Authentication schemas
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-class TokenData(BaseModel):
-    username: Optional[str] = None 
+        orm_mode = True 
