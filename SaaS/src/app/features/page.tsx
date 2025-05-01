@@ -4,22 +4,22 @@ import { BarChart3, Brain, Gauge, LineChart, Users2, Zap } from 'lucide-react'
 const features = [
   {
     name: 'AI-Powered Analytics',
-    description: 'Leverage advanced machine learning algorithms to uncover hidden patterns and insights in your data.',
+    description: 'Leverage advanced machine learning algorithms to uncover hidden patterns and insights between two contracts and ensure compliance.',
     icon: Brain,
   },
   {
-    name: 'Real-time Monitoring',
-    description: 'Track key metrics and performance indicators in real-time with automated alerts and notifications.',
+    name: 'Real-time Modifications',
+    description: 'Get automatic suggestions for modifications to the contract to ensure compliance and speed up the contract review process.',
     icon: Gauge,
   },
   {
     name: 'Custom Dashboards',
-    description: 'Create personalized dashboards with drag-and-drop widgets and customizable visualizations.',
+    description: 'Create personalized dashboards and input important rules and instructions for the AI to follow.',
     icon: BarChart3,
   },
   {
-    name: 'Predictive Analytics',
-    description: 'Forecast trends and make data-driven decisions with our predictive modeling capabilities.',
+    name: 'Accelerate Sales',
+    description: 'Build a library of contracts and use them as a reference to speed up the contract review process.',
     icon: LineChart,
   },
   {
@@ -44,7 +44,7 @@ export default function FeaturesPage() {
               Powerful Features for Data-Driven Teams
             </h1>
             <p className="mt-6 text-lg leading-8 text-gray-600">
-              Everything you need to analyze, visualize, and act on your data with confidence.
+              Everything you need to analyze, visualize, and interact with the legal realm with confidence.
             </p>
           </div>
           <div className="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-none">

@@ -5,9 +5,9 @@ import Image from 'next/image'
 const featuredPost = {
   title: 'Introducing AI-Powered Contract Management',
   excerpt:
-    'Learn about our latest update that brings even more powerful AI capabilities to your analytics dashboard.',
+    'Learn about our latest update that brings even more powerful AI capabilities to your contract management dashboard.',
   author: {
-    name: 'Sarah Johnson',
+    name: 'Zenyi Gomez',
     role: 'Product Manager',
     avatar: 'https://picsum.photos/32/32?random=1',
   },
@@ -18,9 +18,9 @@ const featuredPost = {
 
 const posts = [
   {
-    title: 'Best Practices for Data Visualization',
+    title: 'Best Practices for Contract Comparison',
     excerpt:
-      'Learn how to create effective and engaging data visualizations that tell compelling stories.',
+      'Learn how to create effective prompts to interrogate your files and fix problems between contracts',
     category: 'Tutorials',
     date: 'Mar 15, 2024',
     readTime: '4 min read',
@@ -29,16 +29,16 @@ const posts = [
   {
     title: 'The Future of Business Intelligence',
     excerpt:
-      'Explore emerging trends in BI and how they will shape the future of data analytics.',
+      'Explore emerging trends',
     category: 'Industry Insights',
     date: 'Mar 14, 2024',
     readTime: '6 min read',
     image: 'https://picsum.photos/400/200?random=3',
   },
   {
-    title: 'Customer Success Story: TechCorp',
+    title: 'Customer Success Story: C-kore',
     excerpt:
-      'See how TechCorp improved their decision-making process with our analytics platform.',
+      'See how C-kore accelerated their sales process with ContractLens',
     category: 'Case Studies',
     date: 'Mar 13, 2024',
     readTime: '3 min read',

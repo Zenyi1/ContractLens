@@ -9,13 +9,13 @@ const plans = [
   {
     name: 'Starter',
     price: { monthly: 49, annual: 39 },
-    description: 'Perfect for small teams getting started with data analytics.',
+    description: 'Perfect for small teams looking to get started with contract management.',
     features: [
       'Up to 5 team members',
       'Basic analytics dashboard',
       'Real-time monitoring',
       'Email support',
-      '5GB storage',
+      'Up to 50 contracts per month',
     ],
   },
   {
@@ -24,10 +24,10 @@ const plans = [
     description: 'Advanced features for growing businesses.',
     features: [
       'Up to 20 team members',
-      'Advanced analytics',
+      'Advanced contract comparison',
       'Custom dashboards',
       'Priority support',
-      '50GB storage',
+      'Up to 500 contracts per month',
       'API access',
     ],
   },

@@ -8,7 +8,7 @@ import { Calendar, Check } from 'lucide-react'
 
 const features = [
   'Interactive product walkthrough',
-  'Live data visualization demo',
+  'Live contract comparison demo',
   'Custom dashboard creation',
   'AI-powered insights preview',
   'Team collaboration features',
@@ -38,10 +38,10 @@ export default function DemoPage() {
             <div className="p-8">
               <div className="mx-auto max-w-2xl lg:mx-0">
                 <h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-                  Experience IndexAI in Action
+                  Experience ContractLens in Action
                 </h1>
                 <p className="mt-6 text-lg text-gray-600">
-                  See how our AI-powered analytics platform can transform your data
+                  See how our AI-powered legal platform can transform your data
                   into actionable insights.
                 </p>
 
