@@ -1,0 +1,125 @@
+'use client'
+
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { useAuth } from './AuthContext'
+import { supabase } from '@/utils/supabase'
+
+export type CompanyDetails = {
+  name: string
+  description?: string
+  industry?: string
+  businessType?: string
+  primaryCustomers?: string
+  contractPreferences?: string
+}
+
+type CompanyContextType = {
+  company: CompanyDetails | null
+  isLoading: boolean
+  saveCompanyDetails: (details: CompanyDetails) => Promise<void>
+}
+
+const CompanyContext = createContext<CompanyContextType | undefined>(undefined)
+
+export function CompanyProvider({ children }: { children: ReactNode }) {
+  const [company, setCompany] = useState<CompanyDetails | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const { user, session } = useAuth()
+
+  useEffect(() => {
+    if (!user) {
+      setCompany(null)
+      setIsLoading(false)
+      return
+    }
+
+    const fetchCompanyDetails = async () => {
+      setIsLoading(true)
+      try {
+        // Use backend API instead of direct Supabase access
+        const response = await fetch('http://localhost:8000/company-profiles/me', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${session?.access_token}`,
+            'Content-Type': 'application/json'
+          }
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          setCompany({
+            name: data.name,
+            description: data.description,
+            industry: data.industry,
+            businessType: data.business_type,
+            primaryCustomers: data.primary_customers,
+            contractPreferences: data.contract_preferences
+          })
+        } else if (response.status === 404) {
+          // Profile not found, that's okay
+          setCompany(null)
+        } else {
+          console.error('Error fetching company profile:', await response.text())
+          setCompany(null)
+        }
+      } catch (error) {
+        console.error('Error in company fetch:', error)
+        setCompany(null)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    if (session) {
+      fetchCompanyDetails()
+    } else {
+      setIsLoading(false)
+    }
+  }, [user, session])
+
+  const saveCompanyDetails = async (details: CompanyDetails) => {
+    if (!user || !session) return
+
+    try {
+      // Use backend API instead of direct Supabase access
+      const response = await fetch('http://localhost:8000/company-profiles', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: details.name,
+          description: details.description,
+          industry: details.industry,
+          business_type: details.businessType,
+          primary_customers: details.primaryCustomers,
+          contract_preferences: details.contractPreferences
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to save company details: ${await response.text()}`)
+      }
+
+      setCompany(details)
+    } catch (error) {
+      console.error('Error saving company details:', error)
+      throw error
+    }
+  }
+
+  return (
+    <CompanyContext.Provider value={{ company, isLoading, saveCompanyDetails }}>
+      {children}
+    </CompanyContext.Provider>
+  )
+}
+
+export function useCompany() {
+  const context = useContext(CompanyContext)
+  if (context === undefined) {
+    throw new Error('useCompany must be used within a CompanyProvider')
+  }
+  return context
+} 

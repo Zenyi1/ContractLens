@@ -1,46 +1,93 @@
-# T&Cs Document Processor
+# ContractLens with Supabase Authentication
 
-A web application that processes and compares Terms & Conditions documents using AI to align buyer's clauses with seller's model.
+A web application for analyzing and comparing legal contracts with Supabase authentication.
 
-## Features
+## Project Structure
 
-- Upload Seller and Buyer T&Cs documents (PDF format)
-- AI-powered transformation of buyer's clauses to match seller's structure
-- Annotated PDF output highlighting changes
-- Modern React frontend with Tailwind CSS
-- FastAPI backend with OpenAI GPT-4 integration
-
-## Prerequisites
-
-- Node.js (v16 or higher)
-- Python 3.8 or higher
-- OpenAI API Key
+- `frontend/`: React frontend application
+- `backend/`: FastAPI backend service
 
 ## Setup
 
-1. Clone the repository
-2. Create a `.env` file in the root directory with your OpenAI API key:
+### Prerequisites
+
+- Node.js (v14+)
+- Python (v3.8+)
+- Supabase account (https://supabase.com)
+
+### Supabase Setup
+
+1. Create a new Supabase project
+2. Enable email authentication
+3. Get your Supabase URL and anon key from the project settings
+4. Set up your JWT secret in the Auth settings
+
+### Backend Setup
+
+1. Navigate to the backend directory:
    ```
-   OPENAI_API_KEY=your_api_key_here
+   cd backend
    ```
 
-3. Backend Setup:
-   ```bash
-   cd backend
+2. Create a virtual environment:
+   ```
    python -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
+3. Install dependencies:
+   ```
    pip install -r requirements.txt
+   ```
+
+4. Create a `.env` file based on `.env.example`:
+   ```
+   OPENAI_API_KEY=your-openai-api-key
+   SUPABASE_URL=your-supabase-url
+   SUPABASE_KEY=your-supabase-service-key
+   SECRET_KEY=your-jwt-secret-key
+   ```
+
+5. Start the server:
+   ```
    uvicorn main:app --reload
    ```
 
-4. Frontend Setup:
-   ```bash
+### Frontend Setup
+
+1. Navigate to the frontend directory:
+   ```
    cd frontend
-   npm install
-   npm run dev
    ```
 
-5. Access the application at http://localhost:3000
+2. Install dependencies:
+   ```
+   npm install
+   ```
+
+3. Create a `.env` file based on `.env.example`:
+   ```
+   REACT_APP_SUPABASE_URL=your-supabase-url
+   REACT_APP_SUPABASE_ANON_KEY=your-supabase-anon-key
+   ```
+
+4. Start the development server:
+   ```
+   npm start
+   ```
+
+## Usage
+
+1. Sign up for an account
+2. Log in to access the document upload form
+3. Upload your documents for comparison and analysis
+
+## Features
+
+- Secure authentication with Supabase
+- PDF document upload and processing
+- Contract comparison and analysis using LLMs
+- Download annotated PDFs and summaries
 
 ## Development
 

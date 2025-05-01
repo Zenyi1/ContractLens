@@ -60,7 +60,7 @@ export function Footer() {
         </div>
         <div className="mt-8 border-t pt-8">
           <p className="text-sm text-gray-600">
-            © {new Date().getFullYear()} IndexAI. All rights reserved.
+            © {new Date().getFullYear()} ContractLens. All rights reserved.
           </p>
         </div>
       </div>

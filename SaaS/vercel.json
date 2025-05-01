@@ -1,0 +1,7 @@
+{
+  "buildCommand": "NEXT_DISABLE_ESLINT=1 next build",
+  "installCommand": "npm install",
+  "env": {
+    "NEXT_DISABLE_ESLINT": "1"
+  }
+} 

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { AuthLayout } from '@/components/layout/AuthLayout'
 import { Button } from '@/components/shared/Button'
 import { AlertCircle } from 'lucide-react'
+import { supabase } from '@/utils/supabase'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -19,12 +20,34 @@ export default function LoginPage() {
     setIsLoading(true)
 
     try {
-      // For now, we'll just redirect without actual authentication
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (error) throw error
+      
+      // Successful login - redirect to compare page
       router.push('/compare')
-    } catch {
-      setError('Invalid email or password')
+    } catch (err: any) {
+      setError(err.message || 'Invalid email or password')
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleSocialLogin = async (provider: 'google' | 'github') => {
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      })
+
+      if (error) throw error
+    } catch (err: any) {
+      setError(err.message || `Could not sign in with ${provider}`)
     }
   }
 
@@ -147,18 +170,14 @@ export default function LoginPage() {
               <Button
                 variant="secondary"
                 className="w-full"
-                onClick={() => {
-                  // Handle Google login
-                }}
+                onClick={() => handleSocialLogin('google')}
               >
                 Google
               </Button>
               <Button
                 variant="secondary"
                 className="w-full"
-                onClick={() => {
-                  // Handle GitHub login
-                }}
+                onClick={() => handleSocialLogin('github')}
               >
                 GitHub
               </Button>

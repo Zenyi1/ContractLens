@@ -19,6 +19,10 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Registration toggle - set to False to disable new sign-ups
+REGISTRATION_OPEN = os.getenv("REGISTRATION_OPEN", "True").lower() == "true"
+logger.info(f"Registration is {'open' if REGISTRATION_OPEN else 'closed'}")
+
 # Supabase configuration
 SUPABASE_URL = os.getenv("SUPABASE_URL", "your-supabase-url")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "your-supabase-key")
@@ -72,6 +76,12 @@ def get_password_hash(password):
 
 # User authentication with Supabase
 async def sign_up_user(email: str, password: str, username: str = None):
+    if not REGISTRATION_OPEN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Registration is currently closed. Please try again later."
+        )
+        
     try:
         user_data = {"username": username} if username else {}
         response = supabase.auth.sign_up({

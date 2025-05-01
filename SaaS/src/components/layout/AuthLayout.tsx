@@ -7,7 +7,7 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen flex flex-col">
       <div className="h-16 flex items-center px-4">
         <Link href="/" className="text-xl font-bold text-[#FF6B4A]">
-          IndexAI
+          ContractLens
         </Link>
       </div>
       <main className="flex-1 flex items-center justify-center p-4">

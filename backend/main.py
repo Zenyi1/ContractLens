@@ -203,11 +203,36 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 @app.get("/users/me", response_model=schemas.User)
 async def read_users_me(current_user = Depends(auth.get_current_active_user)):
     return {
-        "id": current_user.id,
-        "email": current_user.email,
-        "username": current_user.user_metadata.get("username"),
-        "created_at": current_user.created_at
+        "id": current_user.get("id"),
+        "email": current_user.get("email"),
+        "username": current_user.get("user_metadata", {}).get("username"),
+        "created_at": current_user.get("created_at", datetime.now().isoformat())
     }
+
+# Registration status endpoint
+@app.get("/registration/status")
+async def get_registration_status():
+    return {"registration_open": auth.REGISTRATION_OPEN}
+
+# Admin endpoint to toggle registration
+@app.post("/admin/toggle-registration")
+async def toggle_registration(current_user = Depends(auth.get_current_active_user)):
+    # Check if user is an admin - you might want to add a proper admin role check here
+    user_email = current_user.get("email", "")
+    if not user_email or user_email != os.getenv("ADMIN_EMAIL"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can toggle registration"
+        )
+    
+    # Toggle the registration status
+    auth.REGISTRATION_OPEN = not auth.REGISTRATION_OPEN
+    logger.info(f"Registration is now {'open' if auth.REGISTRATION_OPEN else 'closed'}")
+    
+    # You could save this to a database or update an environment file here for persistence
+    # For now, this will reset when the server restarts
+    
+    return {"registration_open": auth.REGISTRATION_OPEN}
 
 async def validate_pdf(file: UploadFile):
     if not file.filename.lower().endswith('.pdf'):
