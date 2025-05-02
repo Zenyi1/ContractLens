@@ -112,7 +112,7 @@ origins = [
     "http://localhost:8000",
     "https://tcs-theta-snowy.vercel.app/",
     "https://tcs-theta-snowy.vercel.app",
-    "https://contractlens.vercel.app/"
+    "https://contractsentinelfrontend.vercel.app"
 ]
 
 app.add_middleware(
