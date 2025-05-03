@@ -1,0 +1,6 @@
+.venv
+node_modules
+.vercel
+.mypy_cache
+.venv
+.next
