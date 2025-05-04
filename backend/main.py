@@ -1,7 +1,17 @@
 import os
 import uuid
 import traceback
-from fastapi import FastAPI, File, UploadFile, HTTPException, Request, Depends, status, BackgroundTasks, Body
+from fastapi import (
+    FastAPI,
+    File,
+    UploadFile,
+    HTTPException,
+    Request,
+    Depends,
+    status,
+    BackgroundTasks,
+    Body,
+)
 from fastapi.responses import Response, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
@@ -21,12 +31,12 @@ import schemas
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
 # Load environment variables from .env file
-env_path = os.path.join(os.path.dirname(__file__), '.env')
+env_path = os.path.join(os.path.dirname(__file__), ".env")
 load_dotenv(dotenv_path=env_path)
 logger.info(f"Loading environment from: {env_path}")
 logger.info(f"Environment file exists: {os.path.exists(env_path)}")
@@ -36,33 +46,39 @@ logger.info(f"Current working directory: {os.getcwd()}")
 SUPABASE_URL = os.getenv("SUPABASE_URL", "your-supabase-url")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "your-supabase-key")
 
+
 # Function to ensure database tables exist
 def ensure_tables_exist():
     try:
-        logger.info("Checking if company_profiles table exists and creating if needed...")
-        
+        logger.info(
+            "Checking if company_profiles table exists and creating if needed..."
+        )
+
         # Important: We need to use the service role key (anon key won't work)
         headers = {
             "apikey": SUPABASE_KEY,
             "Authorization": f"Bearer {SUPABASE_KEY}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
-        
+
         # Try to access the company_profiles table
         test_response = requests.get(
-            f"{SUPABASE_URL}/rest/v1/company_profiles?limit=1",
-            headers=headers
+            f"{SUPABASE_URL}/rest/v1/company_profiles?limit=1", headers=headers
         )
-        
+
         logger.info(f"Table check response: {test_response.status_code}")
-        
+
         # If we get a 401/403, we need to disable RLS temporarily
         if test_response.status_code in [401, 403]:
-            logger.info("RLS issues detected. Let's create necessary tables with appropriate permissions")
-            
-            # We can't use execute_sql RPC since it doesn't exist. 
+            logger.info(
+                "RLS issues detected. Let's create necessary tables with appropriate permissions"
+            )
+
+            # We can't use execute_sql RPC since it doesn't exist.
             # Instead, we'll use pgAdmin or Supabase dashboard to manually execute SQL
-            logger.info("Please execute the following SQL in your Supabase dashboard SQL editor:")
+            logger.info(
+                "Please execute the following SQL in your Supabase dashboard SQL editor:"
+            )
             sql = """
             -- Create table if it doesn't exist
             CREATE TABLE IF NOT EXISTS company_profiles (
@@ -86,15 +102,16 @@ def ensure_tables_exist():
             GRANT ALL ON company_profiles TO service_role;
             GRANT ALL ON company_profiles TO anon;
             """
-            
+
             logger.info(sql)
             logger.info("After executing this SQL, restart the server")
-            
+
         logger.info("Table setup completed")
-            
+
     except Exception as e:
         logger.error(f"Error ensuring tables exist: {str(e)}")
         logger.error(traceback.format_exc())
+
 
 # Call the function to ensure tables exist
 ensure_tables_exist()
@@ -112,7 +129,7 @@ origins = [
     "http://localhost:8000",
     "https://tcs-theta-snowy.vercel.app/",
     "https://tcs-theta-snowy.vercel.app",
-    "https://contractsentinelfrontend.vercel.app"
+    "https://contractsentinelfrontend.vercel.app",
 ]
 
 app.add_middleware(
@@ -123,13 +140,16 @@ app.add_middleware(
     allow_headers=["*"],  # This includes Authorization header
 )
 
+
 @app.get("/")
 async def root():
     return {"message": "ContractLens API is running"}
 
+
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
 
 # Middleware to log requests
 @app.middleware("http")
@@ -139,6 +159,7 @@ async def log_requests(request: Request, call_next):
         logger.info(f"Request: {request.method} {request.url.path}")
     response = await call_next(request)
     return response
+
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
@@ -168,16 +189,20 @@ async def root():
     </html>
     """
 
+
 # Authentication endpoints
 @app.post("/auth/signup", response_model=schemas.User)
 async def signup(user_data: schemas.UserCreate):
-    user = await auth.sign_up_user(user_data.email, user_data.password, user_data.username)
+    user = await auth.sign_up_user(
+        user_data.email, user_data.password, user_data.username
+    )
     return {
         "id": user.id,
         "email": user.email,
         "username": user.user_metadata.get("username"),
-        "created_at": user.created_at
+        "created_at": user.created_at,
     }
+
 
 @app.post("/auth/login", response_model=schemas.Token)
 async def login(form_data: schemas.UserLogin):
@@ -187,8 +212,9 @@ async def login(form_data: schemas.UserLogin):
         "token_type": "bearer",
         "refresh_token": auth_response.session.refresh_token,
         "expires_in": auth_response.session.expires_in,
-        "user": auth_response.user.model_dump()
+        "user": auth_response.user.model_dump(),
     }
+
 
 # For backwards compatibility with OAuth2PasswordRequestForm
 @app.post("/token", response_model=schemas.Token)
@@ -199,69 +225,82 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         "token_type": "bearer",
         "refresh_token": auth_response.session.refresh_token,
         "expires_in": auth_response.session.expires_in,
-        "user": auth_response.user.model_dump()
+        "user": auth_response.user.model_dump(),
     }
 
+
 @app.get("/users/me", response_model=schemas.User)
-async def read_users_me(current_user = Depends(auth.get_current_active_user)):
+async def read_users_me(current_user=Depends(auth.get_current_active_user)):
     return {
         "id": current_user.get("id"),
         "email": current_user.get("email"),
         "username": current_user.get("user_metadata", {}).get("username"),
-        "created_at": current_user.get("created_at", datetime.now().isoformat())
+        "created_at": current_user.get("created_at", datetime.now().isoformat()),
     }
+
 
 # Registration status endpoint
 @app.get("/registration/status")
 async def get_registration_status():
     return {"registration_open": auth.REGISTRATION_OPEN}
 
+
 # Admin endpoint to toggle registration
 @app.post("/admin/toggle-registration")
-async def toggle_registration(current_user = Depends(auth.get_current_active_user)):
+async def toggle_registration(current_user=Depends(auth.get_current_active_user)):
     # Check if user is an admin - you might want to add a proper admin role check here
     user_email = current_user.get("email", "")
     if not user_email or user_email != os.getenv("ADMIN_EMAIL"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can toggle registration"
+            detail="Only administrators can toggle registration",
         )
-    
+
     # Toggle the registration status
     auth.REGISTRATION_OPEN = not auth.REGISTRATION_OPEN
     logger.info(f"Registration is now {'open' if auth.REGISTRATION_OPEN else 'closed'}")
-    
+
     # You could save this to a database or update an environment file here for persistence
     # For now, this will reset when the server restarts
-    
+
     return {"registration_open": auth.REGISTRATION_OPEN}
 
+
 async def validate_pdf(file: UploadFile):
-    if not file.filename.lower().endswith('.pdf'):
+    if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="File must be a PDF document")
-    
+
     if file.size and file.size > 10 * 1024 * 1024:  # 10MB limit
-        raise HTTPException(status_code=400, detail="File too large. Maximum size is 10MB")
-    
+        raise HTTPException(
+            status_code=400, detail="File too large. Maximum size is 10MB"
+        )
+
     content_type = file.content_type
-    if content_type and not content_type.startswith('application/pdf'):
-        raise HTTPException(status_code=400, detail="Invalid content type. Must be application/pdf")
+    if content_type and not content_type.startswith("application/pdf"):
+        raise HTTPException(
+            status_code=400, detail="Invalid content type. Must be application/pdf"
+        )
+
 
 # Company profile endpoints
 @app.post("/company-profiles", response_model=schemas.CompanyProfileResponse)
 async def create_company_profile(
     profile_data: schemas.CompanyProfileCreate = Body(...),
-    current_user = Depends(auth.get_current_active_user)
+    current_user=Depends(auth.get_current_active_user),
 ):
     try:
         # Log user and profile data
         logger.info(f"Creating/updating profile for user type: {type(current_user)}")
         logger.info(f"Profile data received: {profile_data}")
-        
+
         # Get user ID properly - handle both dict and object cases
-        user_id = current_user.get('id') if isinstance(current_user, dict) else current_user.id
+        user_id = (
+            current_user.get("id")
+            if isinstance(current_user, dict)
+            else current_user.id
+        )
         logger.info(f"Using user_id: {user_id}")
-        
+
         # Format data for Supabase
         data = {
             "user_id": user_id,
@@ -274,41 +313,41 @@ async def create_company_profile(
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-        
+
         logger.info(f"Formatted data: {data}")
-        
+
         # Log connection info
         logger.info(f"Using SUPABASE_URL: {SUPABASE_URL}")
         logger.info(f"SUPABASE_KEY length: {len(SUPABASE_KEY) if SUPABASE_KEY else 0}")
-        
+
         # IMPORTANT: Try multiple header combinations to bypass RLS
         # 1. Service role headers
         service_headers = {
             "apikey": SUPABASE_KEY,
             "Authorization": f"Bearer {SUPABASE_KEY}",
             "Content-Type": "application/json",
-            "Prefer": "return=representation"
+            "Prefer": "return=representation",
         }
-        
+
         # 2. Try with additional headers
         auth_headers = {
             "apikey": SUPABASE_KEY,
             "Authorization": f"Bearer {SUPABASE_KEY}",
             "Content-Type": "application/json",
             "Prefer": "return=representation",
-            "X-Client-Info": "supabase-js/2.29.0"
+            "X-Client-Info": "supabase-js/2.29.0",
         }
-        
+
         try:
             # First check if profile exists
             check_response = requests.get(
                 f"{SUPABASE_URL}/rest/v1/company_profiles?user_id=eq.{user_id}",
-                headers=service_headers
+                headers=service_headers,
             )
-            
+
             logger.info(f"Check profile response status: {check_response.status_code}")
             logger.info(f"Check profile response: {check_response.text[:100]}...")
-            
+
             if check_response.status_code == 200 and len(check_response.json()) > 0:
                 # Update existing profile
                 logger.info("Updating existing profile")
@@ -316,30 +355,40 @@ async def create_company_profile(
                     update_response = requests.patch(
                         f"{SUPABASE_URL}/rest/v1/company_profiles?user_id=eq.{user_id}",
                         headers=service_headers,
-                        json=data
+                        json=data,
                     )
-                    
-                    logger.info(f"Update response status: {update_response.status_code}")
+
+                    logger.info(
+                        f"Update response status: {update_response.status_code}"
+                    )
                     logger.info(f"Update response: {update_response.text[:100]}...")
-                    
+
                     if update_response.status_code != 200:
                         # Try with auth headers
                         logger.info("Trying update with auth headers")
                         update_response = requests.patch(
                             f"{SUPABASE_URL}/rest/v1/company_profiles?user_id=eq.{user_id}",
                             headers=auth_headers,
-                            json=data
+                            json=data,
                         )
-                        
-                        logger.info(f"Auth header update status: {update_response.status_code}")
-                        
+
+                        logger.info(
+                            f"Auth header update status: {update_response.status_code}"
+                        )
+
                         if update_response.status_code != 200:
-                            logger.error(f"Failed to update company profile: {update_response.text}")
+                            logger.error(
+                                f"Failed to update company profile: {update_response.text}"
+                            )
                             # Try to return the original profile rather than failing
                             return check_response.json()[0]
-                        
+
                     response_data = update_response.json()
-                    return response_data[0] if isinstance(response_data, list) and len(response_data) > 0 else response_data
+                    return (
+                        response_data[0]
+                        if isinstance(response_data, list) and len(response_data) > 0
+                        else response_data
+                    )
                 except Exception as update_err:
                     logger.error(f"Exception during update: {str(update_err)}")
                     logger.error(traceback.format_exc())
@@ -348,7 +397,7 @@ async def create_company_profile(
             else:
                 # Create new profile
                 logger.info("Creating new profile")
-                
+
                 # Try with each header type
                 for attempt, headers in enumerate([service_headers, auth_headers], 1):
                     try:
@@ -356,20 +405,26 @@ async def create_company_profile(
                         create_response = requests.post(
                             f"{SUPABASE_URL}/rest/v1/company_profiles",
                             headers=headers,
-                            json=data
+                            json=data,
                         )
-                        
-                        logger.info(f"Create response status: {create_response.status_code}")
+
+                        logger.info(
+                            f"Create response status: {create_response.status_code}"
+                        )
                         logger.info(f"Create response: {create_response.text[:100]}...")
-                        
+
                         if create_response.status_code == 201:
-                            logger.info(f"Successfully created profile on attempt {attempt}")
+                            logger.info(
+                                f"Successfully created profile on attempt {attempt}"
+                            )
                             return create_response.json()
                     except Exception as err:
                         logger.error(f"Error in attempt {attempt}: {str(err)}")
-                
+
                 # If we reach here, all attempts failed - return a temporary profile
-                logger.warning("All creation attempts failed, returning temporary profile")
+                logger.warning(
+                    "All creation attempts failed, returning temporary profile"
+                )
                 return {
                     "id": str(uuid.uuid4()),
                     "name": data["name"],
@@ -379,9 +434,9 @@ async def create_company_profile(
                     "primary_customers": data["primary_customers"],
                     "contract_preferences": data["contract_preferences"],
                     "created_at": datetime.utcnow(),
-                    "updated_at": datetime.utcnow()
+                    "updated_at": datetime.utcnow(),
                 }
-                
+
         except Exception as req_err:
             logger.error(f"Exception during request: {str(req_err)}")
             logger.error(traceback.format_exc())
@@ -395,9 +450,9 @@ async def create_company_profile(
                 "primary_customers": data["primary_customers"],
                 "contract_preferences": data["contract_preferences"],
                 "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
+                "updated_at": datetime.utcnow(),
             }
-            
+
     except Exception as e:
         logger.error(f"Error creating/updating company profile: {str(e)}")
         logger.error(traceback.format_exc())
@@ -411,54 +466,63 @@ async def create_company_profile(
             "primary_customers": getattr(profile_data, "primary_customers", ""),
             "contract_preferences": getattr(profile_data, "contract_preferences", ""),
             "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
+            "updated_at": datetime.utcnow(),
         }
 
+
 @app.get("/company-profiles/me", response_model=schemas.CompanyProfileResponse)
-async def get_my_company_profile(current_user = Depends(auth.get_current_active_user)):
+async def get_my_company_profile(current_user=Depends(auth.get_current_active_user)):
     try:
         # Log user information to debug
         logger.info(f"Current user type: {type(current_user)}")
         logger.info(f"Current user data: {current_user}")
-        
+
         # Get user ID properly - handle both dict and object cases
-        user_id = current_user.get('id') if isinstance(current_user, dict) else current_user.id
+        user_id = (
+            current_user.get("id")
+            if isinstance(current_user, dict)
+            else current_user.id
+        )
         logger.info(f"Using user_id: {user_id}")
-        
+
         headers = {
             "apikey": SUPABASE_KEY,
             "Authorization": f"Bearer {SUPABASE_KEY}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
-        
+
         response = requests.get(
             f"{SUPABASE_URL}/rest/v1/company_profiles?user_id=eq.{user_id}",
-            headers=headers
+            headers=headers,
         )
-        
+
         logger.info(f"Profile lookup response: {response.status_code}")
-        
+
         if response.status_code != 200:
             logger.error(f"Failed to retrieve company profile: {response.text}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to retrieve company profile: {response.text}"
+                detail=f"Failed to retrieve company profile: {response.text}",
             )
-            
+
         profiles = response.json()
         logger.info(f"Found profiles: {len(profiles) if profiles else 0}")
-        
+
         if not profiles or len(profiles) == 0:
             # Instead of returning a 404, create a default profile
-            logger.info(f"No profile found for user {user_id}, creating default profile")
-            
+            logger.info(
+                f"No profile found for user {user_id}, creating default profile"
+            )
+
             # Get username safely
             username = ""
             if isinstance(current_user, dict):
-                username = current_user.get('user_metadata', {}).get('username', '')
+                username = current_user.get("user_metadata", {}).get("username", "")
             else:
-                username = getattr(current_user, 'user_metadata', {}).get('username', '')
-            
+                username = getattr(current_user, "user_metadata", {}).get(
+                    "username", ""
+                )
+
             # Create default profile data
             data = {
                 "user_id": user_id,
@@ -471,33 +535,39 @@ async def get_my_company_profile(current_user = Depends(auth.get_current_active_
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat(),
             }
-            
+
             logger.info(f"Creating profile with data: {data}")
-            
+
             # Create a new profile
             create_headers = {
                 "apikey": SUPABASE_KEY,
                 "Authorization": f"Bearer {SUPABASE_KEY}",
                 "Content-Type": "application/json",
-                "Prefer": "return=representation"
+                "Prefer": "return=representation",
             }
-            
+
             # Log actual Supabase connection info (sanitized)
             logger.info(f"Using SUPABASE_URL: {SUPABASE_URL}")
-            logger.info(f"SUPABASE_KEY length: {len(SUPABASE_KEY) if SUPABASE_KEY else 0}")
-            
+            logger.info(
+                f"SUPABASE_KEY length: {len(SUPABASE_KEY) if SUPABASE_KEY else 0}"
+            )
+
             try:
                 create_response = requests.post(
                     f"{SUPABASE_URL}/rest/v1/company_profiles",
                     headers=create_headers,
-                    json=data
+                    json=data,
                 )
-                
-                logger.info(f"Create profile response status: {create_response.status_code}")
+
+                logger.info(
+                    f"Create profile response status: {create_response.status_code}"
+                )
                 logger.info(f"Create profile response: {create_response.text}")
-                
+
                 if create_response.status_code != 201:
-                    logger.error(f"Failed to create default profile: {create_response.text}")
+                    logger.error(
+                        f"Failed to create default profile: {create_response.text}"
+                    )
                     # Return an empty profile instead of error as a fallback
                     return {
                         "id": str(uuid.uuid4()),
@@ -508,9 +578,9 @@ async def get_my_company_profile(current_user = Depends(auth.get_current_active_
                         "primary_customers": "General",
                         "contract_preferences": "Standard",
                         "created_at": datetime.utcnow(),
-                        "updated_at": datetime.utcnow()
+                        "updated_at": datetime.utcnow(),
                     }
-                    
+
                 return create_response.json()
             except Exception as create_err:
                 logger.error(f"Exception creating profile: {str(create_err)}")
@@ -525,11 +595,11 @@ async def get_my_company_profile(current_user = Depends(auth.get_current_active_
                     "primary_customers": "General",
                     "contract_preferences": "Standard",
                     "created_at": datetime.utcnow(),
-                    "updated_at": datetime.utcnow()
+                    "updated_at": datetime.utcnow(),
                 }
-            
+
         return profiles[0]
-        
+
     except HTTPException as he:
         raise he
     except Exception as e:
@@ -545,15 +615,16 @@ async def get_my_company_profile(current_user = Depends(auth.get_current_active_
             "primary_customers": "General",
             "contract_preferences": "Standard",
             "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
+            "updated_at": datetime.utcnow(),
         }
+
 
 @app.post("/process")
 async def process_documents(
     background_tasks: BackgroundTasks,
     seller_tc: UploadFile = File(...),
     buyer_tc: UploadFile = File(...),
-    current_user = Depends(auth.get_current_active_user),
+    current_user=Depends(auth.get_current_active_user),
 ):
     try:
         # Get company name if available
@@ -562,14 +633,14 @@ async def process_documents(
             headers = {
                 "apikey": SUPABASE_KEY,
                 "Authorization": f"Bearer {SUPABASE_KEY}",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
             }
-            
+
             response = requests.get(
                 f"{SUPABASE_URL}/rest/v1/company_profiles?user_id=eq.{current_user['id']}",
-                headers=headers
+                headers=headers,
             )
-            
+
             if response.status_code == 200:
                 profiles = response.json()
                 if profiles and len(profiles) > 0:
@@ -577,34 +648,35 @@ async def process_documents(
         except Exception as e:
             logger.warning(f"Failed to get company name: {str(e)}")
             # Continue with default name
-        
+
         # Validate files
         await validate_pdf(seller_tc)
         await validate_pdf(buyer_tc)
-        
+
         # Process the documents
         seller_content = await seller_tc.read()
         buyer_content = await buyer_tc.read()
-        
+
         # Extract text from PDFs
         seller_text = extract_text(seller_content)
         buyer_text = extract_text(buyer_content)
-        
+
         # Process documents using the process module
-        result = process_documents_sync(seller_text, buyer_text, seller_tc.filename, buyer_tc.filename, company_name)
-        
+        result = process_documents_sync(
+            seller_text, buyer_text, seller_tc.filename, buyer_tc.filename, company_name
+        )
+
         # Return the results (without PDF content)
-        return {
-            "summary": result["summary"]
-        }
-            
+        return {"summary": result["summary"]}
+
     except Exception as e:
         logger.error(f"Error during document processing: {str(e)}")
         logger.error(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred during document processing"
+            detail="An error occurred during document processing",
         )
 
+
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True) 
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

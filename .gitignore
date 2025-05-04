@@ -31,3 +31,6 @@ yarn-error.log*
 *.pdf 
 
 .next/
+.venv/
+SaaS/.next/
+.vercel/
