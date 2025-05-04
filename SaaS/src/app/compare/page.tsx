@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { FileText, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useCompany } from '@/context/CompanyContext';
-import { supabase } from '@/utils/supabase';
+import { useSupabase } from '@/context/SupabaseProvider';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
 import { TermsCard, Term, TermStatus } from '@/components/shared/TermsCard';
 
@@ -20,9 +20,9 @@ export default function ComparePage() {
   const [error, setError] = useState<string | null>(null);
   const [terms, setTerms] = useState<Term[]>([]);
   
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const router = useRouter();
   const { session } = useAuth();
+  const { supabase } = useSupabase();
   const { company, isLoading: isCompanyLoading } = useCompany();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'seller' | 'buyer') => {
@@ -56,6 +56,23 @@ export default function ComparePage() {
     router.push('/profile');
   };
 
+  const uploadFile = async (file: File, type: 'seller' | 'buyer') => {
+    const timestamp = new Date().getTime();
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${type}_${timestamp}.${fileExt}`;
+    const filePath = `${session?.user?.id}/contracts/${fileName}`;
+
+    const { error: uploadError, data } = await supabase.storage
+      .from('contract-documents')
+      .upload(filePath, file);
+
+    if (uploadError) {
+      throw new Error(`Error uploading ${type} file: ${uploadError.message}`);
+    }
+
+    return data.path;
+  };
+
   const handleCompare = async () => {
     if (!sellerFile || !buyerFile) {
       setError('Please upload both contract files');
@@ -70,29 +87,27 @@ export default function ComparePage() {
 
     setLoading(true);
     setError(null);
+    
     try {
-      const formData = new FormData();
-      formData.append('seller_tc', sellerFile);
-      formData.append('buyer_tc', buyerFile);
+      // Upload both files to Supabase storage
+      const [sellerPath, buyerPath] = await Promise.all([
+        uploadFile(sellerFile, 'seller'),
+        uploadFile(buyerFile, 'buyer')
+      ]);
 
-      const response = await fetch(`${API_URL}/process`, {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        },
+      // Call Supabase Edge Function to process the documents
+      const { data, error } = await supabase.functions.invoke('process-contracts', {
+        body: {
+          sellerPath,
+          buyerPath,
+          companyId: company?.id
+        }
       });
 
-      if (response.status === 401) {
-        throw new Error('Authentication failed. Please log in again.');
+      if (error) {
+        throw error;
       }
 
-      if (!response.ok) {
-        throw new Error('Failed to process documents');
-      }
-
-      const data = await response.json();
-      
       // Parse the analysis text into structured terms
       const analysisText = data.summary || '';
       
@@ -163,13 +178,18 @@ export default function ComparePage() {
         summary: data.summary || 'No additional notes available'
       });
       
+      // Clean up uploaded files after processing
+      await Promise.all([
+        supabase.storage.from('contract-documents').remove([sellerPath]),
+        supabase.storage.from('contract-documents').remove([buyerPath])
+      ]);
+
       window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     } catch (error: any) {
       console.error('Error:', error);
       setError(error.message || 'An error occurred while processing the documents. Please try again.');
       
       if (error.message.includes('Authentication failed')) {
-        // Force sign out on auth error
         await supabase.auth.signOut();
         router.push('/log-in');
       }
