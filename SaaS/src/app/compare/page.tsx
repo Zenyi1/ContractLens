@@ -32,10 +32,15 @@ export default function ComparePage() {
   const { company, isLoading: isCompanyLoading } = useCompany();
 
   useEffect(() => {
+    if (!session) {
+      router.push('/log-in');
+      return;
+    }
+
     if (company?.id) {
       loadCompanyPriorities();
     }
-  }, [company?.id]);
+  }, [company?.id, session, router]);
 
   const loadCompanyPriorities = async () => {
     if (!company?.id) return;
@@ -216,7 +221,7 @@ export default function ComparePage() {
           // Split content into buyer's and seller's versions if possible
           const buyerContent = content.filter(s => s.toLowerCase().includes('buyer')).join(' ');
           const sellerContent = content.filter(s => 
-            s.toLowerCase().includes('thrift+') || 
+            s.toLowerCase().includes(company.company_name?.toLowerCase() || '') || 
             s.toLowerCase().includes('seller')
           ).join(' ');
           
