@@ -8,12 +8,12 @@ import { supabase } from '@/utils/supabase'
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://your-deployed-backend-url.com';
 
 export type CompanyDetails = {
-  name: string
-  description?: string
-  industry?: string
-  businessType?: string
-  primaryCustomers?: string
-  contractPreferences?: string
+  name: string;
+  description?: string;
+  industry?: string;
+  business_type?: string;
+  primary_customers?: string;
+  contract_preferences?: string;
 }
 
 type CompanyContextType = {
@@ -54,9 +54,9 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
             name: data.name,
             description: data.description,
             industry: data.industry,
-            businessType: data.business_type,
-            primaryCustomers: data.primary_customers,
-            contractPreferences: data.contract_preferences
+            business_type: data.business_type,
+            primary_customers: data.primary_customers,
+            contract_preferences: data.contract_preferences
           })
         } else if (response.status === 404) {
           // Profile not found, that's okay
@@ -95,9 +95,9 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
           name: details.name,
           description: details.description,
           industry: details.industry,
-          business_type: details.businessType,
-          primary_customers: details.primaryCustomers,
-          contract_preferences: details.contractPreferences
+          business_type: details.business_type,
+          primary_customers: details.primary_customers,
+          contract_preferences: details.contract_preferences
         })
       })
 

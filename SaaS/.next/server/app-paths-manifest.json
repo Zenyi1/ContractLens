@@ -1,10 +1,7 @@
 {
-  "/page": "app/page.js",
-  "/log-in/page": "app/log-in/page.js",
   "/compare/page": "app/compare/page.js",
   "/icon.png/route": "app/icon.png/route.js",
-  "/pricing/page": "app/pricing/page.js",
-  "/features/page": "app/features/page.js",
+  "/log-in/page": "app/log-in/page.js",
   "/profile/page": "app/profile/page.js",
-  "/_not-found/page": "app/_not-found/page.js"
+  "/profile/priorities/page": "app/profile/priorities/page.js"
 }

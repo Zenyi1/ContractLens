@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useCompany } from '@/context/CompanyContext';
 import { supabase } from '@/utils/supabase';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
+import { TermsCard, Term, TermStatus } from '@/components/shared/TermsCard';
 
 // Get API URL from environment variable or use a fallback
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://your-deployed-backend-url.com';
@@ -15,8 +16,9 @@ export default function ComparePage() {
   const [sellerFile, setSellerFile] = useState<File | null>(null);
   const [buyerFile, setBuyerFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<{ summary: string } | null>(null);
+  const [result, setResult] = useState<{ summary: string; terms: Term[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [terms, setTerms] = useState<Term[]>([]);
   
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const router = useRouter();
@@ -32,6 +34,22 @@ export default function ComparePage() {
         setBuyerFile(file);
       }
     }
+  };
+
+  const handleStatusChange = (termId: string, newStatus: TermStatus) => {
+    setTerms(prevTerms =>
+      prevTerms.map(term =>
+        term.id === termId ? { ...term, status: newStatus } : term
+      )
+    );
+  };
+
+  const handleNotesChange = (termId: string, notes: string) => {
+    setTerms(prevTerms =>
+      prevTerms.map(term =>
+        term.id === termId ? { ...term, notes } : term
+      )
+    );
   };
 
   const redirectToProfile = () => {
@@ -74,7 +92,77 @@ export default function ComparePage() {
       }
 
       const data = await response.json();
-      setResult(data);
+      
+      // Parse the analysis text into structured terms
+      const analysisText = data.summary || '';
+      
+      // Split the text into sentences
+      const sentences = analysisText.split(/[.!?](?=\s|$)/).filter((s: string) => s.trim().length > 0);
+      
+      // Group related sentences into topics
+      const topics = [
+        { key: 'definitions', title: 'Definitions and Terms', keywords: ['definition', 'terms', 'clarity'] },
+        { key: 'payment', title: 'Payment Terms', keywords: ['payment', 'cash flow', 'financial', 'interest', 'withhold'] },
+        { key: 'delivery', title: 'Delivery and Equipment', keywords: ['delivery', 'equipment', 'return', 'operational'] },
+        { key: 'ip', title: 'Intellectual Property', keywords: ['intellectual property', 'ownership', 'assets'] },
+        { key: 'personnel', title: 'Personnel and Safety', keywords: ['personnel', 'security', 'safety', 'compliance'] },
+        { key: 'liability', title: 'Liability and Indemnification', keywords: ['liability', 'indemnif', 'damage', 'risk'] },
+        { key: 'termination', title: 'Termination Rights', keywords: ['terminat', 'default', 'rights'] }
+      ];
+
+      const topicContents: { [key: string]: string[] } = {};
+      
+      // Categorize sentences into topics
+      sentences.forEach((sentence: string) => {
+        const trimmedSentence = sentence.trim();
+        if (!trimmedSentence) return;
+
+        // Find matching topics for this sentence
+        const matchingTopics = topics.filter(topic =>
+          topic.keywords.some(keyword => 
+            trimmedSentence.toLowerCase().includes(keyword.toLowerCase())
+          )
+        );
+
+        // Add sentence to all matching topics
+        matchingTopics.forEach(topic => {
+          if (!topicContents[topic.key]) {
+            topicContents[topic.key] = [];
+          }
+          topicContents[topic.key].push(trimmedSentence);
+        });
+      });
+
+      // Transform topics into terms
+      const transformedTerms = topics
+        .filter(topic => topicContents[topic.key]?.length > 0)
+        .map((topic, index) => {
+          const content = topicContents[topic.key];
+          
+          // Split content into buyer's and seller's versions if possible
+          const buyerContent = content.filter(s => s.toLowerCase().includes('buyer')).join(' ');
+          const sellerContent = content.filter(s => 
+            s.toLowerCase().includes('thrift+') || 
+            s.toLowerCase().includes('seller')
+          ).join(' ');
+          
+          return {
+            id: `term-${index}`,
+            title: topic.title,
+            description: content.join(' '),
+            status: 'pending' as TermStatus,
+            buyerVersion: buyerContent || 'Buyer version not specified',
+            sellerVersion: sellerContent || 'Seller version not specified',
+            notes: ''
+          };
+        });
+
+      setTerms(transformedTerms);
+      setResult({
+        terms: transformedTerms,
+        summary: data.summary || 'No additional notes available'
+      });
+      
       window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     } catch (error: any) {
       console.error('Error:', error);
@@ -242,11 +330,27 @@ export default function ComparePage() {
                 <h2 className="text-xl font-bold text-gray-900 mb-6">Analysis Results</h2>
                 
                 <div className="mb-8">
-                  <h3 className="text-lg font-medium text-gray-900 mb-3">Summary of Key Issues</h3>
-                  <div className="prose max-w-none bg-gray-50 p-4 rounded-lg">
-                    <pre className="whitespace-pre-wrap text-sm">{result.summary}</pre>
+                  <h3 className="text-lg font-medium text-gray-900 mb-3">Contract Terms Analysis</h3>
+                  <div className="space-y-4">
+                    {terms.map((term) => (
+                      <TermsCard
+                        key={term.id}
+                        term={term}
+                        onStatusChange={handleStatusChange}
+                        onNotesChange={handleNotesChange}
+                      />
+                    ))}
                   </div>
                 </div>
+
+                {result.summary && terms.length === 0 && (
+                  <div className="mt-8">
+                    <h3 className="text-lg font-medium text-gray-900 mb-3">Analysis Details</h3>
+                    <div className="prose max-w-none bg-gray-50 p-4 rounded-lg">
+                      <pre className="whitespace-pre-wrap text-gray-900">{result.summary}</pre>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
