@@ -130,6 +130,7 @@ origins = [
     "https://tcs-theta-snowy.vercel.app/",
     "https://tcs-theta-snowy.vercel.app",
     "https://contractsentinelfrontend.vercel.app",
+    "https://contractsentinelfrontend.vercel.app"
 ]
 
 app.add_middleware(

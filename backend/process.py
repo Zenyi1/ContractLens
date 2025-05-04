@@ -129,7 +129,7 @@ def transform_clauses(buyer_text: str, seller_text: str, company_name: str = "Se
         
         print(f"\nSplit into {len(buyer_chunks)} buyer chunks and {len(seller_chunks)} seller chunks")
         
-        # Fetch company priorities
+        # Fetch company priorities only if company_id is provided
         priorities = get_company_priorities(company_id) if company_id else []
         
         # Build dynamic system prompt based on priorities
@@ -253,12 +253,12 @@ def generate_change_summary(buyer_text: str, transformed_text: str, company_name
     # Add a header and combine the sections
     return f"=== CONTRACT ANALYSIS REPORT FOR {company_name.upper()} ===\n" + "\n".join(formatted_sections)
 
-def process_documents_sync(seller_text: str, buyer_text: str, seller_filename: str, buyer_filename: str, company_name: str = "Seller") -> dict:
+def process_documents_sync(seller_text: str, buyer_text: str, seller_filename: str, buyer_filename: str, company_name: str = "Seller", company_id: str = None) -> dict:
     """Process documents synchronously and return the summary."""
     print(f"Processing documents: {buyer_filename} and {seller_filename} for {company_name}")
     
     # Transform buyer's contract
-    transformed_text = transform_clauses(buyer_text, seller_text, company_name)
+    transformed_text = transform_clauses(buyer_text, seller_text, company_name, company_id)
     
     # Generate changes summary
     summary = generate_change_summary(buyer_text, transformed_text, company_name)
