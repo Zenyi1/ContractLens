@@ -1,119 +1,120 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { useAuth } from './AuthContext'
-import { supabase } from '@/utils/supabase'
+import { useSupabase } from './SupabaseProvider'
+import { toast } from 'sonner'
 
-// Get API URL from environment variable or use a fallback
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://your-deployed-backend-url.com';
-
-export type CompanyDetails = {
-  name: string;
-  description?: string;
-  industry?: string;
-  business_type?: string;
-  primary_customers?: string;
-  contract_preferences?: string;
+export interface CompanyDetails {
+  id?: string;
+  company_name: string;
+  contact_email: string;
+  contact_phone: string;
+  address: string;
 }
 
-type CompanyContextType = {
-  company: CompanyDetails | null
-  isLoading: boolean
-  saveCompanyDetails: (details: CompanyDetails) => Promise<void>
+interface CompanyContextType {
+  company: CompanyDetails | null;
+  isLoading: boolean;
+  saveCompanyDetails: (details: CompanyDetails) => Promise<void>;
+  refreshCompany: () => Promise<void>;
 }
 
 const CompanyContext = createContext<CompanyContextType | undefined>(undefined)
 
 export function CompanyProvider({ children }: { children: ReactNode }) {
+  const { supabase, session } = useSupabase()
   const [company, setCompany] = useState<CompanyDetails | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const { user, session } = useAuth()
 
-  useEffect(() => {
-    if (!user) {
-      setCompany(null)
-      setIsLoading(false)
-      return
-    }
+  const fetchCompany = async () => {
+    try {
+      if (!session?.user?.id) {
+        setCompany(null)
+        return
+      }
 
-    const fetchCompanyDetails = async () => {
-      setIsLoading(true)
-      try {
-        // Use backend API with configurable URL
-        const response = await fetch(`${API_URL}/company-profiles/me`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${session?.access_token}`,
-            'Content-Type': 'application/json'
-          }
-        })
+      const { data, error } = await supabase
+        .from('company_information')
+        .select('*')
+        .single()
 
-        if (response.ok) {
-          const data = await response.json()
-          setCompany({
-            name: data.name,
-            description: data.description,
-            industry: data.industry,
-            business_type: data.business_type,
-            primary_customers: data.primary_customers,
-            contract_preferences: data.contract_preferences
-          })
-        } else if (response.status === 404) {
-          // Profile not found, that's okay
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // No company profile exists yet
           setCompany(null)
         } else {
-          console.error('Error fetching company profile:', await response.text())
-          setCompany(null)
+          console.error('Error fetching company:', error)
+          toast.error('Failed to load company information')
         }
-      } catch (error) {
-        console.error('Error in company fetch:', error)
-        setCompany(null)
-      } finally {
-        setIsLoading(false)
+        return
       }
-    }
 
-    if (session) {
-      fetchCompanyDetails()
-    } else {
+      setCompany(data)
+    } catch (error) {
+      console.error('Error in company fetch:', error)
+      toast.error('Failed to load company information')
+    } finally {
       setIsLoading(false)
     }
-  }, [user, session])
+  }
 
   const saveCompanyDetails = async (details: CompanyDetails) => {
-    if (!user || !session) return
-
     try {
-      // Use backend API with configurable URL
-      const response = await fetch(`${API_URL}/company-profiles`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          name: details.name,
-          description: details.description,
-          industry: details.industry,
-          business_type: details.business_type,
-          primary_customers: details.primary_customers,
-          contract_preferences: details.contract_preferences
-        })
-      })
-
-      if (!response.ok) {
-        throw new Error(`Failed to save company details: ${await response.text()}`)
+      if (!session?.user?.id) {
+        throw new Error('No authenticated user')
       }
 
-      setCompany(details)
+      let result
+      
+      if (company?.id) {
+        // Update existing company
+        result = await supabase
+          .from('company_information')
+          .update({
+            company_name: details.company_name,
+            contact_email: details.contact_email,
+            contact_phone: details.contact_phone,
+            address: details.address
+          })
+          .eq('id', company.id)
+      } else {
+        // Create new company
+        result = await supabase
+          .from('company_information')
+          .insert([{
+            company_name: details.company_name,
+            contact_email: details.contact_email,
+            contact_phone: details.contact_phone,
+            address: details.address
+          }])
+      }
+
+      if (result.error) {
+        throw result.error
+      }
+
+      await fetchCompany()
+      toast.success('Company details saved successfully')
     } catch (error) {
       console.error('Error saving company details:', error)
+      toast.error('Failed to save company details')
       throw error
     }
   }
 
+  useEffect(() => {
+    if (session?.user?.id) {
+      fetchCompany()
+    }
+  }, [session?.user?.id])
+
   return (
-    <CompanyContext.Provider value={{ company, isLoading, saveCompanyDetails }}>
+    <CompanyContext.Provider value={{ 
+      company, 
+      isLoading, 
+      saveCompanyDetails,
+      refreshCompany: fetchCompany
+    }}>
       {children}
     </CompanyContext.Provider>
   )
