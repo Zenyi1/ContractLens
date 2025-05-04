@@ -13,6 +13,8 @@ interface CompanyProfile {
   contact_email: string;
   contact_phone: string;
   address: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export default function ProfilePage() {
@@ -27,8 +29,16 @@ export default function ProfilePage() {
   }, [session?.user?.id]);
 
   const loadCompanyProfile = async () => {
+    if (!session?.user?.id) {
+      console.error('No user ID found');
+      return;
+    }
+
     try {
+      setIsLoading(true);
       console.log('Fetching company profile...');
+      
+      // First try to get existing profile
       const { data, error } = await supabase
         .from('company_information')
         .select('*')
@@ -41,7 +51,7 @@ export default function ProfilePage() {
             .from('company_information')
             .insert([{
               company_name: 'My Company',
-              contact_email: session?.user?.email || '',
+              contact_email: session.user.email || '',
               contact_phone: '',
               address: ''
             }])
@@ -66,13 +76,15 @@ export default function ProfilePage() {
       setProfile(data);
     } catch (error) {
       console.error('Error:', error);
-      toast.error('An error occurred');
+      toast.error('An error occurred while loading profile');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const updateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!profile) return;
+    if (!profile || !session?.user?.id) return;
 
     setIsLoading(true);
     try {
@@ -104,7 +116,9 @@ export default function ProfilePage() {
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-8 text-black">Company Profile</h1>
 
-      {profile ? (
+      {isLoading ? (
+        <div className="text-center py-8">Loading profile...</div>
+      ) : profile ? (
         <form onSubmit={updateProfile} className="space-y-4 max-w-2xl">
           <div>
             <label className="block text-sm font-medium mb-1 text-black">Company Name</label>
@@ -151,7 +165,7 @@ export default function ProfilePage() {
           </Button>
         </form>
       ) : (
-        <div className="text-center py-8">Loading profile...</div>
+        <div className="text-center py-8">No profile found. Please try refreshing the page.</div>
       )}
     </div>
   );

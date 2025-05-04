@@ -3,36 +3,97 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { FileText, AlertCircle, Loader2 } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
 import { useCompany } from '@/context/CompanyContext';
 import { useSupabase } from '@/context/SupabaseProvider';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
 import { TermsCard, Term, TermStatus } from '@/components/shared/TermsCard';
 
-// Get API URL from environment variable or use a fallback
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://your-deployed-backend-url.com';
+interface CompanyPriority {
+  id: string;
+  company_id: string;
+  priority_name: string;
+  priority_description: string;
+  priority_weight: number;
+  is_active: boolean;
+}
 
 export default function ComparePage() {
   const [sellerFile, setSellerFile] = useState<File | null>(null);
   const [buyerFile, setBuyerFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [processingFile, setProcessingFile] = useState<'seller' | 'buyer' | null>(null);
   const [result, setResult] = useState<{ summary: string; terms: Term[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [terms, setTerms] = useState<Term[]>([]);
+  const [priorities, setPriorities] = useState<CompanyPriority[]>([]);
   
   const router = useRouter();
-  const { session } = useAuth();
-  const { supabase } = useSupabase();
+  const { supabase, session } = useSupabase();
   const { company, isLoading: isCompanyLoading } = useCompany();
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'seller' | 'buyer') => {
+  useEffect(() => {
+    if (company?.id) {
+      loadCompanyPriorities();
+    }
+  }, [company?.id]);
+
+  const loadCompanyPriorities = async () => {
+    if (!company?.id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('contract_priorities')
+        .select('*')
+        .eq('company_id', company.id)
+        .eq('is_active', true)
+        .order('priority_weight', { ascending: false });
+
+      if (error) {
+        console.error('Error loading priorities:', error);
+        return;
+      }
+
+      setPriorities(data || []);
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, type: 'seller' | 'buyer') => {
     const file = e.target.files?.[0];
-    if (file) {
+    if (!file) return;
+
+    // Validate file type
+    if (file.type !== 'application/pdf') {
+      setError('Please upload a PDF file');
+      e.target.value = '';
+      return;
+    }
+
+    // Validate file size (10MB limit)
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB in bytes
+    if (file.size > MAX_FILE_SIZE) {
+      setError('File size must be less than 10MB');
+      e.target.value = '';
+      return;
+    }
+
+    try {
+      // Clear any previous errors
+      setError(null);
+      setProcessingFile(type);
+      
       if (type === 'seller') {
         setSellerFile(file);
       } else {
         setBuyerFile(file);
       }
+    } catch (error) {
+      console.error('Error handling file:', error);
+      setError('Failed to process the uploaded file. Please try again.');
+      e.target.value = '';
+    } finally {
+      setProcessingFile(null);
     }
   };
 
@@ -56,23 +117,6 @@ export default function ComparePage() {
     router.push('/profile');
   };
 
-  const uploadFile = async (file: File, type: 'seller' | 'buyer') => {
-    const timestamp = new Date().getTime();
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${type}_${timestamp}.${fileExt}`;
-    const filePath = `${session?.user?.id}/contracts/${fileName}`;
-
-    const { error: uploadError, data } = await supabase.storage
-      .from('contract-documents')
-      .upload(filePath, file);
-
-    if (uploadError) {
-      throw new Error(`Error uploading ${type} file: ${uploadError.message}`);
-    }
-
-    return data.path;
-  };
-
   const handleCompare = async () => {
     if (!sellerFile || !buyerFile) {
       setError('Please upload both contract files');
@@ -85,27 +129,42 @@ export default function ComparePage() {
       return;
     }
 
+    if (!company?.id) {
+      setError('Company profile not found');
+      return;
+    }
+
     setLoading(true);
     setError(null);
     
     try {
-      // Upload both files to Supabase storage
-      const [sellerPath, buyerPath] = await Promise.all([
-        uploadFile(sellerFile, 'seller'),
-        uploadFile(buyerFile, 'buyer')
+      // Convert files to base64
+      const [sellerContent, buyerContent] = await Promise.all([
+        sellerFile.arrayBuffer().then(buffer => Buffer.from(buffer).toString('base64')),
+        buyerFile.arrayBuffer().then(buffer => Buffer.from(buffer).toString('base64'))
       ]);
 
       // Call Supabase Edge Function to process the documents
       const { data, error } = await supabase.functions.invoke('process-contracts', {
         body: {
-          sellerPath,
-          buyerPath,
-          companyId: company?.id
+          sellerContent,
+          buyerContent,
+          companyId: company.id,
+          priorities: priorities
+        },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
         }
       });
 
       if (error) {
-        throw error;
+        console.error('Edge Function error:', error);
+        throw new Error(error.message || 'Failed to process contracts');
+      }
+
+      if (!data) {
+        throw new Error('No data received from the analysis');
       }
 
       // Parse the analysis text into structured terms
@@ -178,18 +237,13 @@ export default function ComparePage() {
         summary: data.summary || 'No additional notes available'
       });
       
-      // Clean up uploaded files after processing
-      await Promise.all([
-        supabase.storage.from('contract-documents').remove([sellerPath]),
-        supabase.storage.from('contract-documents').remove([buyerPath])
-      ]);
-
       window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     } catch (error: any) {
-      console.error('Error:', error);
+      console.error('Error details:', error);
       setError(error.message || 'An error occurred while processing the documents. Please try again.');
       
-      if (error.message.includes('Authentication failed')) {
+      if (error.message?.toLowerCase().includes('authentication') || 
+          error.message?.toLowerCase().includes('unauthorized')) {
         await supabase.auth.signOut();
         router.push('/log-in');
       }
@@ -271,7 +325,11 @@ export default function ComparePage() {
                   <div className="flex items-center justify-center w-full">
                     <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
                       <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                        <FileText className="w-10 h-10 mb-3 text-gray-400" />
+                        {processingFile === 'seller' ? (
+                          <Loader2 className="w-10 h-10 mb-3 text-gray-400 animate-spin" />
+                        ) : (
+                          <FileText className="w-10 h-10 mb-3 text-gray-400" />
+                        )}
                         <p className="mb-2 text-sm text-gray-500">
                           <span className="font-semibold">Click to upload</span> or drag and drop
                         </p>
@@ -279,9 +337,10 @@ export default function ComparePage() {
                       </div>
                       <input
                         type="file"
-                        accept=".pdf"
+                        accept=".pdf,application/pdf"
                         className="hidden"
                         onChange={(e) => handleFileChange(e, 'seller')}
+                        disabled={processingFile !== null}
                       />
                     </label>
                   </div>
@@ -299,7 +358,11 @@ export default function ComparePage() {
                   <div className="flex items-center justify-center w-full">
                     <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
                       <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                        <FileText className="w-10 h-10 mb-3 text-gray-400" />
+                        {processingFile === 'buyer' ? (
+                          <Loader2 className="w-10 h-10 mb-3 text-gray-400 animate-spin" />
+                        ) : (
+                          <FileText className="w-10 h-10 mb-3 text-gray-400" />
+                        )}
                         <p className="mb-2 text-sm text-gray-500">
                           <span className="font-semibold">Click to upload</span> or drag and drop
                         </p>
@@ -307,9 +370,10 @@ export default function ComparePage() {
                       </div>
                       <input
                         type="file"
-                        accept=".pdf"
+                        accept=".pdf,application/pdf"
                         className="hidden"
                         onChange={(e) => handleFileChange(e, 'buyer')}
+                        disabled={processingFile !== null}
                       />
                     </label>
                   </div>
