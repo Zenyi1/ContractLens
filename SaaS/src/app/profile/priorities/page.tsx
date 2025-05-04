@@ -27,30 +27,88 @@ export default function ContractPriorities() {
 
   useEffect(() => {
     if (session?.user?.id) {
+      console.log('Session user ID:', session.user.id);
       loadPriorities();
+    } else {
+      console.log('No session or user ID found');
     }
   }, [session?.user?.id]);
 
   const loadPriorities = async () => {
     try {
+      console.log('Fetching company information...');
       const { data: companyData, error: companyError } = await supabase
         .from('company_information')
         .select('id')
         .single();
 
-      if (companyError) throw companyError;
+      if (companyError) {
+        // For first-time users, create a company record
+        if (companyError.code === 'PGRST116') {
+          // First, let's check if the user exists
+          if (!session?.user?.id) {
+            console.error('No user session found');
+            toast.error('Please log in to continue');
+            return;
+          }
 
+          console.log('Creating new company record...');
+          // Create a new company record with required fields
+          const { data: newCompany, error: createError } = await supabase
+            .from('company_information')
+            .insert([{
+              company_name: 'My Company', // Required field
+              contact_email: session.user.email || '', // Optional
+            }])
+            .select('id')
+            .single();
+
+          if (createError) {
+            console.error('Error creating company:', createError);
+            console.log('Full error:', JSON.stringify(createError, null, 2));
+            toast.error('Failed to create company profile. Please try again.');
+            return;
+          }
+
+          if (!newCompany) {
+            console.error('No company created');
+            toast.error('Failed to create company profile');
+            return;
+          }
+
+          console.log('Company created successfully:', newCompany);
+          toast.success('Company profile created');
+          return loadPriorities(); // Retry after creating company
+        }
+        console.error('Error fetching company information:', companyError);
+        toast.error('Failed to load company information');
+        return;
+      }
+
+      if (!companyData) {
+        console.error('No company data found');
+        toast.error('No company information found');
+        return;
+      }
+
+      console.log('Fetching priorities for company:', companyData.id);
       const { data, error } = await supabase
         .from('contract_priorities')
         .select('*')
         .eq('company_id', companyData.id)
         .order('priority_weight', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching priorities:', error);
+        toast.error('Failed to load priorities');
+        return;
+      }
+
+      console.log('Priorities loaded:', data?.length || 0);
       setPriorities(data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading priorities:', error);
-      toast.error('Failed to load priorities');
+      toast.error(error.message || 'Failed to load priorities');
     }
   };
 
@@ -66,12 +124,17 @@ export default function ContractPriorities() {
 
       if (companyError) throw companyError;
 
-      const { error } = await supabase.from('contract_priorities').insert([
-        {
-          ...newPriority,
-          company_id: companyData.id,
-        },
-      ]);
+      const { error } = await supabase
+        .from('contract_priorities')
+        .insert([
+          {
+            company_id: companyData.id,
+            priority_name: newPriority.priority_name,
+            priority_description: newPriority.priority_description,
+            priority_weight: newPriority.priority_weight,
+            is_active: true
+          }
+        ]);
 
       if (error) throw error;
 
@@ -126,13 +189,13 @@ export default function ContractPriorities() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-8">Contract Priorities</h1>
+      <h1 className="text-3xl font-bold mb-8 text-black">Contract Priorities</h1>
 
       <div className="bg-white rounded-lg shadow p-6 mb-8">
-        <h2 className="text-xl font-semibold mb-4">Add New Priority</h2>
+        <h2 className="text-xl font-semibold mb-4 text-black">Add New Priority</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Priority Name</label>
+            <label className="block text-sm font-medium mb-1 text-black">Priority Name</label>
             <Input
               type="text"
               value={newPriority.priority_name}
@@ -141,10 +204,11 @@ export default function ContractPriorities() {
               }
               required
               placeholder="e.g., Payment Terms"
+              className="text-black"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Description</label>
+            <label className="block text-sm font-medium mb-1 text-black">Description</label>
             <Textarea
               value={newPriority.priority_description}
               onChange={(e) =>
@@ -155,24 +219,26 @@ export default function ContractPriorities() {
               }
               required
               placeholder="Describe what aspects are important for this priority..."
+              className="text-black"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">
+            <label className="block text-sm font-medium mb-1 text-black">
               Priority Weight (1-10)
             </label>
             <Input
               type="number"
               min="1"
               max="10"
-              value={newPriority.priority_weight}
+              value={String(newPriority.priority_weight)}
               onChange={(e) =>
                 setNewPriority({
                   ...newPriority,
-                  priority_weight: parseInt(e.target.value),
+                  priority_weight: parseInt(e.target.value) || 1,
                 })
               }
               required
+              className="text-black"
             />
           </div>
           <Button type="submit" disabled={isLoading}>
@@ -183,7 +249,7 @@ export default function ContractPriorities() {
 
       <div className="bg-white rounded-lg shadow">
         <div className="p-6">
-          <h2 className="text-xl font-semibold mb-4">Current Priorities</h2>
+          <h2 className="text-xl font-semibold mb-4 text-black">Current Priorities</h2>
           <div className="space-y-4">
             {priorities.map((priority) => (
               <div
@@ -191,11 +257,11 @@ export default function ContractPriorities() {
                 className="border rounded p-4 flex items-center justify-between"
               >
                 <div>
-                  <h3 className="font-medium">{priority.priority_name}</h3>
-                  <p className="text-sm text-gray-600">
+                  <h3 className="font-medium text-black">{priority.priority_name}</h3>
+                  <p className="text-sm text-black">
                     {priority.priority_description}
                   </p>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-black">
                     Weight: {priority.priority_weight}
                   </p>
                 </div>
@@ -218,8 +284,8 @@ export default function ContractPriorities() {
               </div>
             ))}
             {priorities.length === 0 && (
-              <p className="text-gray-500 text-center py-4">
-                No priorities added yet
+              <p className="text-black text-center py-4">
+                No priorities added yet. Add your first priority above!
               </p>
             )}
           </div>
