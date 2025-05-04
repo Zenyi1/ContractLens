@@ -27,7 +27,7 @@ export function AuthHeader() {
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center">
             <Link href="/" className="text-xl font-bold text-[#FF6B4A]">
-              {company?.name ? company.name : 'ContractLens'}
+              {company?.company_name ? company.company_name : 'ContractLens'}
             </Link>
           </div>
           
