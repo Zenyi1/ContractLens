@@ -2,62 +2,52 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/context/AuthContext'
-import { useCompany } from '@/context/CompanyContext'
-import { LogOut, User } from 'lucide-react'
-
-const navItems = [
-  { label: 'Compare', href: '/compare' },
-  { label: 'Company Profile', href: '/profile' },
-]
+import { useSupabase } from '@/context/SupabaseProvider'
 
 export function AuthHeader() {
   const router = useRouter()
-  const { signOut } = useAuth()
-  const { company } = useCompany()
+  const { session, supabase } = useSupabase()
 
   const handleSignOut = async () => {
-    await signOut()
+    await supabase.auth.signOut()
     router.push('/')
   }
 
   return (
-    <header className="w-full">
-      <div className="border-b">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center">
-            <Link href="/" className="text-xl font-bold text-[#FF6B4A]">
-              {company?.company_name ? company.company_name : 'ContractLens'}
-            </Link>
-          </div>
-          
-          <nav className="hidden md:flex items-center space-x-8">
-            {navItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="text-sm font-medium text-gray-700 hover:text-[#FF6B4A]"
-              >
-                {item.label}
+    <header className="bg-white shadow">
+      <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between h-16">
+          <div className="flex">
+            <div className="flex-shrink-0 flex items-center">
+              <Link href="/" className="text-xl font-bold text-[#4A7CFF]">
+                ContractLens
               </Link>
-            ))}
-          </nav>
-
-          <div className="flex items-center space-x-4">
-            <Link href="/profile" className="flex items-center text-sm font-medium text-gray-700 hover:text-[#FF6B4A]">
-              <User className="h-4 w-4 mr-1" />
-              Profile
-            </Link>
+            </div>
+            <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
+              <Link
+                href="/compare"
+                className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+              >
+                Compare
+              </Link>
+              <Link
+                href="/profile"
+                className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+              >
+                Profile
+              </Link>
+            </div>
+          </div>
+          <div className="hidden sm:ml-6 sm:flex sm:items-center">
             <button
               onClick={handleSignOut}
-              className="flex items-center text-sm font-medium text-gray-700 hover:text-[#FF6B4A]"
+              className="border-transparent text-gray-500 hover:text-gray-700 inline-flex items-center px-1 pt-1 text-sm font-medium"
             >
-              <LogOut className="h-4 w-4 mr-1" />
-              Sign out
+              Sign Out
             </button>
           </div>
         </div>
-      </div>
+      </nav>
     </header>
   )
 } 
