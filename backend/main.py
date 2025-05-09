@@ -131,6 +131,7 @@ origins = [
     "https://tcs-theta-snowy.vercel.app",
     "https://contractsentinelfrontend.vercel.app",
     "https://contractsentinelfrontend.vercel.app"
+
 ]
 
 app.add_middleware(
@@ -628,8 +629,9 @@ async def process_documents(
     current_user=Depends(auth.get_current_active_user),
 ):
     try:
-        # Get company name if available
+        # Get company name and ID if available
         company_name = "Your Company"
+        company_id = None
         try:
             headers = {
                 "apikey": SUPABASE_KEY,
@@ -646,8 +648,9 @@ async def process_documents(
                 profiles = response.json()
                 if profiles and len(profiles) > 0:
                     company_name = profiles[0].get("name", "Your Company")
+                    company_id = profiles[0].get("id")
         except Exception as e:
-            logger.warning(f"Failed to get company name: {str(e)}")
+            logger.warning(f"Failed to get company information: {str(e)}")
             # Continue with default name
 
         # Validate files
@@ -664,7 +667,12 @@ async def process_documents(
 
         # Process documents using the process module
         result = process_documents_sync(
-            seller_text, buyer_text, seller_tc.filename, buyer_tc.filename, company_name
+            seller_text, 
+            buyer_text, 
+            seller_tc.filename, 
+            buyer_tc.filename, 
+            company_name,
+            company_id
         )
 
         # Return the results (without PDF content)
