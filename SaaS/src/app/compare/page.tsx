@@ -143,30 +143,35 @@ export default function ComparePage() {
     setError(null);
     
     try {
-      // Convert files to base64
-      const [sellerContent, buyerContent] = await Promise.all([
-        sellerFile.arrayBuffer().then(buffer => Buffer.from(buffer).toString('base64')),
-        buyerFile.arrayBuffer().then(buffer => Buffer.from(buffer).toString('base64'))
-      ]);
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append('seller_tc', sellerFile);
+      formData.append('buyer_tc', buyerFile);
 
-      // Call Supabase Edge Function to process the documents
-      const { data, error } = await supabase.functions.invoke('process-contracts', {
-        body: {
-          sellerContent,
-          buyerContent,
-          companyId: company.id,
-          priorities: priorities
-        },
+      // Debug logs
+      console.log('API URL:', process.env.NEXT_PUBLIC_API_URL);
+      console.log('Session token:', session.access_token);
+
+      // Call the main backend API
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/process`, {
+        method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`
-        }
+        },
+        body: formData
       });
 
-      if (error) {
-        console.error('Edge Function error:', error);
-        throw new Error(error.message || 'Failed to process contracts');
+      console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Error response:', errorData);
+        throw new Error(errorData.detail || 'Failed to process contracts');
       }
+
+      const data = await response.json();
+      console.log('Success response:', data);
 
       if (!data) {
         throw new Error('No data received from the analysis');
