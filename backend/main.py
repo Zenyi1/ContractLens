@@ -130,8 +130,9 @@ origins = [
     "https://tcs-theta-snowy.vercel.app/",
     "https://tcs-theta-snowy.vercel.app",
     "https://contractsentinelfrontend.vercel.app",
-    "https://contractsentinelfrontend.vercel.app"
-
+    "https://contractsentinelfrontend.vercel.app",
+    "https://contractsentinelfrontend-9ndi62x4m-zenyi1s-projects.vercel.app",  # Add your new frontend domain
+    "https://contractsentinelfrontend-i3lx833df-zenyi1s-projects.vercel.app"   # Add your other frontend domain
 ]
 
 app.add_middleware(
@@ -689,3 +690,4 @@ async def process_documents(
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
