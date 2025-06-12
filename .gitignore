@@ -35,3 +35,4 @@ yarn-error.log*
 SaaS/.next*
 .vercel/
 SaaS/.next/*
+.next/*
