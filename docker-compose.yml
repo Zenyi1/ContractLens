@@ -1,8 +1,18 @@
 services:
-  contractlens:
+  contractlens-frontend:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: DockerfileFrontend
+    env_file:
+      - .env
+    ports:
+      - "3000:3000"
+    depends_on:
+      - contractlens-backend
+  contractlens-backend:
+    build:
+      context: .
+      dockerfile: DockerfileBackend
     env_file:
       - .env
     ports:

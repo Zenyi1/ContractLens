@@ -1,0 +1,21 @@
+# Frontend Dockerfile
+FROM node:20-alpine
+
+# Set working directory
+WORKDIR /app/frontend
+
+# Install dependencies
+COPY SaaS/package.json SaaS/package-lock.json ./
+RUN npm install
+
+# Copy frontend source code
+COPY SaaS/ .
+
+# Build Next.js app
+RUN npm run build
+
+# Expose Next.js port
+EXPOSE 3000
+
+# Command to start Next.js server
+CMD ["npm", "start"]
