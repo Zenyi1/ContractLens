@@ -1,40 +1,32 @@
 'use client'
 
-import { ReactNode, useEffect } from 'react'
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/context/AuthContext'
+import { useSupabase } from '@/context/SupabaseProvider'
 import { AuthHeader } from './AuthHeader'
 
 interface AuthenticatedLayoutProps {
-  children: ReactNode
+  children: React.ReactNode
 }
 
 export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
-  const { user, isLoading } = useAuth()
   const router = useRouter()
+  const { session } = useSupabase()
 
   useEffect(() => {
-    if (!isLoading && !user) {
+    if (!session) {
       router.push('/log-in')
     }
-  }, [user, isLoading, router])
+  }, [session, router])
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-      </div>
-    )
-  }
-
-  if (!user) {
+  if (!session) {
     return null // Will redirect in useEffect
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen bg-gray-50">
       <AuthHeader />
-      <main className="flex-grow">{children}</main>
+      <main>{children}</main>
     </div>
   )
 } 

@@ -1,229 +1,172 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Loader2, Save, AlertCircle } from 'lucide-react';
-import { useCompany, CompanyDetails } from '@/context/CompanyContext';
-import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
+import { useEffect, useState } from 'react';
+import { useSupabase } from '@/context/SupabaseProvider';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { toast } from 'sonner';
+
+interface CompanyProfile {
+  id: string;
+  company_name: string;
+  contact_email: string;
+  contact_phone: string;
+  address: string;
+  created_at?: string;
+  updated_at?: string;
+}
 
 export default function ProfilePage() {
-  const [formData, setFormData] = useState<CompanyDetails>({
-    name: '',
-    description: '',
-    industry: '',
-    businessType: '',
-    primaryCustomers: '',
-    contractPreferences: ''
-  });
-  
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  
-  const { company, isLoading, saveCompanyDetails } = useCompany();
+  const { supabase, session } = useSupabase();
+  const [profile, setProfile] = useState<CompanyProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Load company data when available
   useEffect(() => {
-    if (company && !isLoading) {
-      setFormData({
-        name: company.name || '',
-        description: company.description || '',
-        industry: company.industry || '',
-        businessType: company.businessType || '',
-        primaryCustomers: company.primaryCustomers || '',
-        contractPreferences: company.contractPreferences || ''
-      });
+    if (session?.user?.id) {
+      loadCompanyProfile();
     }
-  }, [company, isLoading]);
+  }, [session?.user?.id]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
+  const loadCompanyProfile = async () => {
+    if (!session?.user?.id) {
+      console.error('No user ID found');
+      return;
+    }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setSuccess(false);
-    
     try {
-      await saveCompanyDetails(formData);
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
-    } catch (err: any) {
-      setError(err.message || 'Failed to save company details');
+      setIsLoading(true);
+      console.log('Fetching company profile...');
+      
+      // First try to get existing profile
+      const { data, error } = await supabase
+        .from('company_information')
+        .select('*')
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // No profile exists yet, create one
+          const { data: newProfile, error: createError } = await supabase
+            .from('company_information')
+            .insert([{
+              company_name: 'My Company',
+              contact_email: session.user.email || '',
+              contact_phone: '',
+              address: ''
+            }])
+            .select()
+            .single();
+
+          if (createError) {
+            console.error('Error creating profile:', createError);
+            toast.error('Failed to create company profile');
+            return;
+          }
+
+          setProfile(newProfile);
+          toast.success('Company profile created');
+        } else {
+          console.error('Error fetching profile:', error);
+          toast.error('Failed to load company profile');
+        }
+        return;
+      }
+
+      setProfile(data);
+    } catch (error) {
+      console.error('Error:', error);
+      toast.error('An error occurred while loading profile');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  if (isLoading) {
-    return (
-      <AuthenticatedLayout>
-        <div className="flex items-center justify-center min-h-screen">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-        </div>
-      </AuthenticatedLayout>
-    );
+  const updateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profile || !session?.user?.id) return;
+
+    setIsLoading(true);
+    try {
+      const { error } = await supabase
+        .from('company_information')
+        .update({
+          company_name: profile.company_name,
+          contact_email: profile.contact_email,
+          contact_phone: profile.contact_phone,
+          address: profile.address
+        })
+        .eq('id', profile.id);
+
+      if (error) throw error;
+      toast.success('Profile updated successfully');
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      toast.error('Failed to update profile');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (!session) {
+    return <div className="p-4">Please log in to view your profile.</div>;
   }
 
   return (
-    <AuthenticatedLayout>
-      <div className="bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-12">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Company Profile</h1>
-            <p className="text-lg text-gray-600">
-              Manage your company details for contract analysis
-            </p>
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold mb-8 text-black">Company Profile</h1>
+
+      {isLoading ? (
+        <div className="text-center py-8">Loading profile...</div>
+      ) : profile ? (
+        <form onSubmit={updateProfile} className="space-y-4 max-w-2xl">
+          <div>
+            <label className="block text-sm font-medium mb-1 text-black">Company Name</label>
+            <Input
+              type="text"
+              value={profile.company_name}
+              onChange={(e) => setProfile({ ...profile, company_name: e.target.value })}
+              required
+              className="text-black"
+            />
           </div>
 
-          <div className="bg-white shadow sm:rounded-lg overflow-hidden mb-8">
-            <div className="px-4 py-5 sm:p-6">
-              <form onSubmit={handleSubmit}>
-                {error && (
-                  <div className="mb-4 rounded-md bg-red-50 p-4">
-                    <div className="flex">
-                      <div className="flex-shrink-0">
-                        <AlertCircle className="h-5 w-5 text-red-400" aria-hidden="true" />
-                      </div>
-                      <div className="ml-3">
-                        <h3 className="text-sm font-medium text-red-800">{error}</h3>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                {success && (
-                  <div className="mb-4 rounded-md bg-green-50 p-4">
-                    <div className="flex">
-                      <div className="ml-3">
-                        <h3 className="text-sm font-medium text-green-800">
-                          Company details saved successfully!
-                        </h3>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                  <div className="col-span-2">
-                    <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                      Company Name*
-                    </label>
-                    <input
-                      type="text"
-                      name="name"
-                      id="name"
-                      value={formData.name}
-                      onChange={handleChange}
-                      required
-                      className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
-                    />
-                  </div>
-                  
-                  <div className="col-span-2">
-                    <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-                      Company Description
-                    </label>
-                    <textarea
-                      name="description"
-                      id="description"
-                      rows={3}
-                      value={formData.description}
-                      onChange={handleChange}
-                      className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label htmlFor="industry" className="block text-sm font-medium text-gray-700">
-                      Industry
-                    </label>
-                    <input
-                      type="text"
-                      name="industry"
-                      id="industry"
-                      value={formData.industry}
-                      onChange={handleChange}
-                      className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label htmlFor="businessType" className="block text-sm font-medium text-gray-700">
-                      Business Type
-                    </label>
-                    <select
-                      name="businessType"
-                      id="businessType"
-                      value={formData.businessType}
-                      onChange={handleChange}
-                      className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
-                    >
-                      <option value="">Select business type</option>
-                      <option value="B2B">B2B</option>
-                      <option value="B2C">B2C</option>
-                      <option value="B2G">B2G</option>
-                      <option value="Nonprofit">Nonprofit</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label htmlFor="primaryCustomers" className="block text-sm font-medium text-gray-700">
-                      Primary Customer Types
-                    </label>
-                    <input
-                      type="text"
-                      name="primaryCustomers"
-                      id="primaryCustomers"
-                      value={formData.primaryCustomers}
-                      onChange={handleChange}
-                      className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label htmlFor="contractPreferences" className="block text-sm font-medium text-gray-700">
-                      Contract Preferences
-                    </label>
-                    <input
-                      type="text"
-                      name="contractPreferences"
-                      id="contractPreferences"
-                      value={formData.contractPreferences}
-                      onChange={handleChange}
-                      className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
-                    />
-                  </div>
-                </div>
-                
-                <div className="mt-6 flex justify-end">
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className={`px-4 py-2 rounded-md text-white font-medium flex items-center
-                      ${loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#4A7CFF] hover:bg-blue-700'}`}
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="w-5 h-5 mr-2" />
-                        Save Details
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            </div>
+          <div>
+            <label className="block text-sm font-medium mb-1 text-black">Contact Email</label>
+            <Input
+              type="email"
+              value={profile.contact_email}
+              onChange={(e) => setProfile({ ...profile, contact_email: e.target.value })}
+              className="text-black"
+            />
           </div>
-        </div>
-      </div>
-    </AuthenticatedLayout>
+
+          <div>
+            <label className="block text-sm font-medium mb-1 text-black">Contact Phone</label>
+            <Input
+              type="tel"
+              value={profile.contact_phone}
+              onChange={(e) => setProfile({ ...profile, contact_phone: e.target.value })}
+              className="text-black"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1 text-black">Address</label>
+            <Textarea
+              value={profile.address}
+              onChange={(e) => setProfile({ ...profile, address: e.target.value })}
+              className="text-black"
+            />
+          </div>
+
+          <Button type="submit" disabled={isLoading}>
+            {isLoading ? 'Saving...' : 'Save Changes'}
+          </Button>
+        </form>
+      ) : (
+        <div className="text-center py-8">No profile found. Please try refreshing the page.</div>
+      )}
+    </div>
   );
 } 

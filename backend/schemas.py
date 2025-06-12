@@ -2,22 +2,27 @@ from typing import Optional, List
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field
 
+
 # User schemas
 class UserBase(BaseModel):
     email: EmailStr
     username: Optional[str] = None
 
+
 class UserCreate(UserBase):
     password: str
+
 
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
+
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     username: Optional[str] = None
     password: Optional[str] = None
+
 
 class User(UserBase):
     id: str
@@ -25,6 +30,7 @@ class User(UserBase):
 
     class Config:
         orm_mode = True
+
 
 # Authentication schemas
 class Token(BaseModel):
@@ -34,12 +40,15 @@ class Token(BaseModel):
     expires_in: Optional[int] = None
     user: Optional[dict] = None
 
+
 class TokenData(BaseModel):
     email: Optional[str] = None
+
 
 # Process response schema
 class ProcessResponse(BaseModel):
     summary: str
+
 
 # Company profile schemas
 class CompanyProfileBase(BaseModel):
@@ -50,8 +59,10 @@ class CompanyProfileBase(BaseModel):
     primary_customers: Optional[str] = None
     contract_preferences: Optional[str] = None
 
+
 class CompanyProfileCreate(CompanyProfileBase):
     pass
+
 
 class CompanyProfileUpdate(BaseModel):
     name: Optional[str] = None
@@ -61,6 +72,7 @@ class CompanyProfileUpdate(BaseModel):
     primary_customers: Optional[str] = None
     contract_preferences: Optional[str] = None
 
+
 class CompanyProfileResponse(CompanyProfileBase):
     id: str
     created_at: datetime
@@ -69,6 +81,7 @@ class CompanyProfileResponse(CompanyProfileBase):
     class Config:
         orm_mode = True
 
+
 # Company document schemas
 class CompanyDocumentBase(BaseModel):
     filename: str
@@ -76,8 +89,10 @@ class CompanyDocumentBase(BaseModel):
     description: Optional[str] = None
     is_primary_template: bool = False
 
+
 class CompanyDocumentCreate(CompanyDocumentBase):
     company_id: str
+
 
 class CompanyDocumentResponse(CompanyDocumentBase):
     id: str
@@ -89,14 +104,17 @@ class CompanyDocumentResponse(CompanyDocumentBase):
     class Config:
         orm_mode = True
 
+
 # Analysis history schemas
 class AnalysisHistoryBase(BaseModel):
     company_doc_filename: str
     client_doc_filename: str
     summary: str
 
+
 class AnalysisHistoryCreate(AnalysisHistoryBase):
     user_id: str
+
 
 class AnalysisHistoryResponse(AnalysisHistoryBase):
     id: str
@@ -105,4 +123,4 @@ class AnalysisHistoryResponse(AnalysisHistoryBase):
     user_id: str
 
     class Config:
-        orm_mode = True 
+        orm_mode = True

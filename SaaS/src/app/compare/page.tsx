@@ -3,35 +3,119 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { FileText, AlertCircle, Loader2 } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
 import { useCompany } from '@/context/CompanyContext';
-import { supabase } from '@/utils/supabase';
+import { useSupabase } from '@/context/SupabaseProvider';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
+import { TermsCard, Term, TermStatus } from '@/components/shared/TermsCard';
 
-// Get API URL from environment variable or use a fallback
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://your-deployed-backend-url.com';
+interface CompanyPriority {
+  id: string;
+  company_id: string;
+  priority_name: string;
+  priority_description: string;
+  priority_weight: number;
+  is_active: boolean;
+}
 
 export default function ComparePage() {
   const [sellerFile, setSellerFile] = useState<File | null>(null);
   const [buyerFile, setBuyerFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<{ summary: string } | null>(null);
+  const [processingFile, setProcessingFile] = useState<'seller' | 'buyer' | null>(null);
+  const [result, setResult] = useState<{ summary: string; terms: Term[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [terms, setTerms] = useState<Term[]>([]);
+  const [priorities, setPriorities] = useState<CompanyPriority[]>([]);
   
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const router = useRouter();
-  const { session } = useAuth();
+  const { supabase, session } = useSupabase();
   const { company, isLoading: isCompanyLoading } = useCompany();
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'seller' | 'buyer') => {
+  useEffect(() => {
+    if (!session) {
+      router.push('/log-in');
+      return;
+    }
+
+    if (company?.id) {
+      loadCompanyPriorities();
+    }
+  }, [company?.id, session, router]);
+
+  const loadCompanyPriorities = async () => {
+    if (!company?.id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('contract_priorities')
+        .select('*')
+        .eq('company_id', company.id)
+        .eq('is_active', true)
+        .order('priority_weight', { ascending: false });
+
+      if (error) {
+        console.error('Error loading priorities:', error);
+        return;
+      }
+
+      setPriorities(data || []);
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, type: 'seller' | 'buyer') => {
     const file = e.target.files?.[0];
-    if (file) {
+    if (!file) return;
+
+    // Validate file type
+    if (file.type !== 'application/pdf') {
+      setError('Please upload a PDF file');
+      e.target.value = '';
+      return;
+    }
+
+    // Validate file size (10MB limit)
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB in bytes
+    if (file.size > MAX_FILE_SIZE) {
+      setError('File size must be less than 10MB');
+      e.target.value = '';
+      return;
+    }
+
+    try {
+      // Clear any previous errors
+      setError(null);
+      setProcessingFile(type);
+      
       if (type === 'seller') {
         setSellerFile(file);
       } else {
         setBuyerFile(file);
       }
+    } catch (error) {
+      console.error('Error handling file:', error);
+      setError('Failed to process the uploaded file. Please try again.');
+      e.target.value = '';
+    } finally {
+      setProcessingFile(null);
     }
+  };
+
+  const handleStatusChange = (termId: string, newStatus: TermStatus) => {
+    setTerms(prevTerms =>
+      prevTerms.map(term =>
+        term.id === termId ? { ...term, status: newStatus } : term
+      )
+    );
+  };
+
+  const handleNotesChange = (termId: string, notes: string) => {
+    setTerms(prevTerms =>
+      prevTerms.map(term =>
+        term.id === termId ? { ...term, notes } : term
+      )
+    );
   };
 
   const redirectToProfile = () => {
@@ -50,38 +134,126 @@ export default function ComparePage() {
       return;
     }
 
+    if (!company?.id) {
+      setError('Company profile not found');
+      return;
+    }
+
     setLoading(true);
     setError(null);
+    
     try {
+      // Create FormData for file upload
       const formData = new FormData();
       formData.append('seller_tc', sellerFile);
       formData.append('buyer_tc', buyerFile);
 
-      const response = await fetch(`${API_URL}/process`, {
+      // Debug logs
+      console.log('API URL:', process.env.NEXT_PUBLIC_API_URL);
+      console.log('Session token:', session.access_token);
+
+      // Call the main backend API
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/process`, {
         method: 'POST',
-        body: formData,
         headers: {
           'Authorization': `Bearer ${session.access_token}`
         },
+        body: formData
       });
 
-      if (response.status === 401) {
-        throw new Error('Authentication failed. Please log in again.');
-      }
+      console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
 
       if (!response.ok) {
-        throw new Error('Failed to process documents');
+        const errorData = await response.json();
+        console.error('Error response:', errorData);
+        throw new Error(errorData.detail || 'Failed to process contracts');
       }
 
       const data = await response.json();
-      setResult(data);
+      console.log('Success response:', data);
+
+      if (!data) {
+        throw new Error('No data received from the analysis');
+      }
+
+      // Parse the analysis text into structured terms
+      const analysisText = data.summary || '';
+      
+      // Split the text into sentences
+      const sentences = analysisText.split(/[.!?](?=\s|$)/).filter((s: string) => s.trim().length > 0);
+      
+      // Group related sentences into topics
+      const topics = [
+        { key: 'definitions', title: 'Definitions and Terms', keywords: ['definition', 'terms', 'clarity'] },
+        { key: 'payment', title: 'Payment Terms', keywords: ['payment', 'cash flow', 'financial', 'interest', 'withhold'] },
+        { key: 'delivery', title: 'Delivery and Equipment', keywords: ['delivery', 'equipment', 'return', 'operational'] },
+        { key: 'ip', title: 'Intellectual Property', keywords: ['intellectual property', 'ownership', 'assets'] },
+        { key: 'personnel', title: 'Personnel and Safety', keywords: ['personnel', 'security', 'safety', 'compliance'] },
+        { key: 'liability', title: 'Liability and Indemnification', keywords: ['liability', 'indemnif', 'damage', 'risk'] },
+        { key: 'termination', title: 'Termination Rights', keywords: ['terminat', 'default', 'rights'] }
+      ];
+
+      const topicContents: { [key: string]: string[] } = {};
+      
+      // Categorize sentences into topics
+      sentences.forEach((sentence: string) => {
+        const trimmedSentence = sentence.trim();
+        if (!trimmedSentence) return;
+
+        // Find matching topics for this sentence
+        const matchingTopics = topics.filter(topic =>
+          topic.keywords.some(keyword => 
+            trimmedSentence.toLowerCase().includes(keyword.toLowerCase())
+          )
+        );
+
+        // Add sentence to all matching topics
+        matchingTopics.forEach(topic => {
+          if (!topicContents[topic.key]) {
+            topicContents[topic.key] = [];
+          }
+          topicContents[topic.key].push(trimmedSentence);
+        });
+      });
+
+      // Transform topics into terms
+      const transformedTerms = topics
+        .filter(topic => topicContents[topic.key]?.length > 0)
+        .map((topic, index) => {
+          const content = topicContents[topic.key];
+          
+          // Split content into buyer's and seller's versions if possible
+          const buyerContent = content.filter(s => s.toLowerCase().includes('buyer')).join(' ');
+          const sellerContent = content.filter(s => 
+            s.toLowerCase().includes(company.company_name?.toLowerCase() || '') || 
+            s.toLowerCase().includes('seller')
+          ).join(' ');
+          
+          return {
+            id: `term-${index}`,
+            title: topic.title,
+            description: content.join(' '),
+            status: 'pending' as TermStatus,
+            buyerVersion: buyerContent || 'Buyer version not specified',
+            sellerVersion: sellerContent || 'Seller version not specified',
+            notes: ''
+          };
+        });
+
+      setTerms(transformedTerms);
+      setResult({
+        terms: transformedTerms,
+        summary: data.summary || 'No additional notes available'
+      });
+      
       window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     } catch (error: any) {
-      console.error('Error:', error);
+      console.error('Error details:', error);
       setError(error.message || 'An error occurred while processing the documents. Please try again.');
       
-      if (error.message.includes('Authentication failed')) {
-        // Force sign out on auth error
+      if (error.message?.toLowerCase().includes('authentication') || 
+          error.message?.toLowerCase().includes('unauthorized')) {
         await supabase.auth.signOut();
         router.push('/log-in');
       }
@@ -103,7 +275,7 @@ export default function ComparePage() {
   }
 
   // If the company profile doesn't exist, prompt the user to create one
-  if (!company?.name) {
+  if (!company?.company_name) {
     return (
       <AuthenticatedLayout>
         <div className="bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -158,12 +330,16 @@ export default function ComparePage() {
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-gray-700">
-                    {company.name}&apos;s Contract Template
+                    {company.company_name}&apos;s Contract Template
                   </label>
                   <div className="flex items-center justify-center w-full">
                     <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
                       <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                        <FileText className="w-10 h-10 mb-3 text-gray-400" />
+                        {processingFile === 'seller' ? (
+                          <Loader2 className="w-10 h-10 mb-3 text-gray-400 animate-spin" />
+                        ) : (
+                          <FileText className="w-10 h-10 mb-3 text-gray-400" />
+                        )}
                         <p className="mb-2 text-sm text-gray-500">
                           <span className="font-semibold">Click to upload</span> or drag and drop
                         </p>
@@ -171,9 +347,10 @@ export default function ComparePage() {
                       </div>
                       <input
                         type="file"
-                        accept=".pdf"
+                        accept=".pdf,application/pdf"
                         className="hidden"
                         onChange={(e) => handleFileChange(e, 'seller')}
+                        disabled={processingFile !== null}
                       />
                     </label>
                   </div>
@@ -191,7 +368,11 @@ export default function ComparePage() {
                   <div className="flex items-center justify-center w-full">
                     <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
                       <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                        <FileText className="w-10 h-10 mb-3 text-gray-400" />
+                        {processingFile === 'buyer' ? (
+                          <Loader2 className="w-10 h-10 mb-3 text-gray-400 animate-spin" />
+                        ) : (
+                          <FileText className="w-10 h-10 mb-3 text-gray-400" />
+                        )}
                         <p className="mb-2 text-sm text-gray-500">
                           <span className="font-semibold">Click to upload</span> or drag and drop
                         </p>
@@ -199,9 +380,10 @@ export default function ComparePage() {
                       </div>
                       <input
                         type="file"
-                        accept=".pdf"
+                        accept=".pdf,application/pdf"
                         className="hidden"
                         onChange={(e) => handleFileChange(e, 'buyer')}
+                        disabled={processingFile !== null}
                       />
                     </label>
                   </div>
@@ -242,11 +424,27 @@ export default function ComparePage() {
                 <h2 className="text-xl font-bold text-gray-900 mb-6">Analysis Results</h2>
                 
                 <div className="mb-8">
-                  <h3 className="text-lg font-medium text-gray-900 mb-3">Summary of Key Issues</h3>
-                  <div className="prose max-w-none bg-gray-50 p-4 rounded-lg">
-                    <pre className="whitespace-pre-wrap text-sm">{result.summary}</pre>
+                  <h3 className="text-lg font-medium text-gray-900 mb-3">Contract Terms Analysis</h3>
+                  <div className="space-y-4">
+                    {terms.map((term) => (
+                      <TermsCard
+                        key={term.id}
+                        term={term}
+                        onStatusChange={handleStatusChange}
+                        onNotesChange={handleNotesChange}
+                      />
+                    ))}
                   </div>
                 </div>
+
+                {result.summary && terms.length === 0 && (
+                  <div className="mt-8">
+                    <h3 className="text-lg font-medium text-gray-900 mb-3">Analysis Details</h3>
+                    <div className="prose max-w-none bg-gray-50 p-4 rounded-lg">
+                      <pre className="whitespace-pre-wrap text-gray-900">{result.summary}</pre>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

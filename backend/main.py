@@ -2,15 +2,25 @@ import os
 import uuid
 import traceback
 from fastapi import (
+    (
     FastAPI,
+   
     File,
+   
     UploadFile,
+   
     HTTPException,
+   
     Request,
+   
     Depends,
+   
     status,
+   
     BackgroundTasks,
+   
     Body,
+),
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
@@ -41,17 +51,8 @@ logger.info(f"Environment file exists: {os.path.exists(env_path)}")
 logger.info(f"Current working directory: {os.getcwd()}")
 
 # Supabase configuration
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-
-# Check if environment variables are set
-if not SUPABASE_URL:
-    logger.error("Supabase URL is not set in environment variables.")
-    raise ValueError("Supabase URL is not set in environment variables.")
-
-if not SUPABASE_KEY:
-    logger.error("Supabase Key is not set in environment variables.")
-    raise ValueError("Supabase Key is not set in environment variables.")
+SUPABASE_URL = os.getenv("SUPABASE_URL", "your-supabase-url")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "your-supabase-key")
 
 
 # Function to ensure database tables exist
@@ -137,6 +138,9 @@ origins = [
     "https://tcs-theta-snowy.vercel.app/",
     "https://tcs-theta-snowy.vercel.app",
     "https://contractsentinelfrontend.vercel.app",
+    "https://contractsentinelfrontend.vercel.app",
+    "https://contractsentinelfrontend-9ndi62x4m-zenyi1s-projects.vercel.app",  # Add your new frontend domain
+    "https://contractsentinelfrontend-i3lx833df-zenyi1s-projects.vercel.app"   # Add your other frontend domain
 ]
 
 app.add_middleware(
@@ -146,6 +150,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],  # This includes Authorization header
 )
+
+
+@app.get("/")
+async def root():
+    return {"message": "ContractLens API is running"}
 
 
 @app.get("/health")
@@ -196,7 +205,7 @@ async def root():
 @app.post("/auth/signup", response_model=schemas.User)
 async def signup(user_data: schemas.UserCreate):
     user = await auth.sign_up_user(
-        user_data.email, user_data.password, user_data.username or ""
+        user_data.email, user_data.password, user_data.username
     )
     return {
         "id": user.id,
@@ -269,7 +278,7 @@ async def toggle_registration(current_user=Depends(auth.get_current_active_user)
 
 
 async def validate_pdf(file: UploadFile):
-    if not file.filename or not file.filename.lower().endswith(".pdf"):
+    if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="File must be a PDF document")
 
     if file.size and file.size > 10 * 1024 * 1024:  # 10MB limit
@@ -629,8 +638,9 @@ async def process_documents(
     current_user=Depends(auth.get_current_active_user),
 ):
     try:
-        # Get company name if available
+        # Get company name and ID if available
         company_name = "Your Company"
+        company_id = None
         try:
             headers = {
                 "apikey": SUPABASE_KEY,
@@ -647,8 +657,9 @@ async def process_documents(
                 profiles = response.json()
                 if profiles and len(profiles) > 0:
                     company_name = profiles[0].get("name", "Your Company")
+                    company_id = profiles[0].get("id")
         except Exception as e:
-            logger.warning(f"Failed to get company name: {str(e)}")
+            logger.warning(f"Failed to get company information: {str(e)}")
             # Continue with default name
 
         # Validate files
@@ -665,7 +676,12 @@ async def process_documents(
 
         # Process documents using the process module
         result = process_documents_sync(
-            seller_text, buyer_text, seller_tc.filename, buyer_tc.filename, company_name
+            seller_text, 
+            buyer_text, 
+            seller_tc.filename, 
+            buyer_tc.filename, 
+            company_name,
+            company_id
         )
 
         # Return the results (without PDF content)

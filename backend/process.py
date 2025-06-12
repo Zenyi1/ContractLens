@@ -11,8 +11,15 @@ import json
 import time
 from io import BytesIO
 import tempfile
+from supabase import create_client, Client
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
+
+# Initialize Supabase client
+supabase: Client = create_client(
+    os.environ.get("SUPABASE_URL"),
+    os.environ.get("SUPABASE_KEY")
+)
 
 # Debug: Print environment variables
 print("Current working directory:", os.getcwd())
@@ -23,6 +30,15 @@ if "OPENAI_API_KEY" in os.environ:
 
 # Initialize OpenAI client with explicit configuration
 client = OpenAI()
+
+def get_company_priorities(company_id: str) -> list:
+    """Fetch company priorities from Supabase."""
+    try:
+        response = supabase.table('contract_priorities').select('*').eq('company_id', company_id).execute()
+        return response.data
+    except Exception as e:
+        print(f"Error fetching priorities: {e}")
+        return []
 
 def extract_text(pdf_content: bytes) -> str:
     """Extract text content from PDF bytes."""
@@ -97,7 +113,7 @@ def split_into_chunks(text: str, max_tokens: int = 3000) -> list[str]:
     
     return chunks
 
-def transform_clauses(buyer_text: str, seller_text: str, company_name: str = "Seller") -> str:
+def transform_clauses(buyer_text: str, seller_text: str, company_name: str = "Seller", company_id: str = None) -> str:
     """Transform buyer's clauses to align with seller's model using GPT-3.5-turbo."""
     try:
         # Preprocess texts to reduce token count
@@ -113,6 +129,43 @@ def transform_clauses(buyer_text: str, seller_text: str, company_name: str = "Se
         
         print(f"\nSplit into {len(buyer_chunks)} buyer chunks and {len(seller_chunks)} seller chunks")
         
+        # Fetch company priorities only if company_id is provided
+        priorities = get_company_priorities(company_id) if company_id else []
+        
+        # Build dynamic system prompt based on priorities
+        system_prompt = f"""You are an expert legal counsel specializing in equipment rental agreements. You represent the equipment owner/lessor (the {company_name}) who is renting out specialized equipment to customers (the Buyer).
+
+CRITICAL CONTEXT:
+- This is a RENTAL agreement, not a sale
+- The {company_name} owns and maintains the equipment
+- The Buyer is renting the equipment for temporary use
+"""
+
+        # Add company-specific priorities
+        if priorities:
+            system_prompt += "\nCOMPANY PRIORITIES:\n"
+            for priority in priorities:
+                system_prompt += f"- {priority['priority_name']}: {priority['priority_description']}\n"
+        
+        system_prompt += """
+ANALYSIS FRAMEWORK:
+For each significant clause, analyze:
+1. CURRENT SITUATION:
+   - What does the Buyer's clause say?
+   - What does the Seller's clause say?
+   - Where exactly is the misalignment?
+
+2. IMPACT ANALYSIS:
+   - Why is this difference problematic for the Seller?
+   - What specific risks does it create?
+   - What could go wrong if this isn't fixed?
+
+3. RECOMMENDED SOLUTION:
+   - What specific changes are needed?
+   - Why is this the right solution?
+   - What exact wording should be used?
+"""
+
         transformed_chunks = []
         max_retries = 3
         retry_delay = 30
@@ -130,152 +183,7 @@ def transform_clauses(buyer_text: str, seller_text: str, company_name: str = "Se
                         messages=[
                             {
                                 "role": "system",
-                                "content": f"""You are an expert legal counsel specializing in equipment rental agreements. You represent the equipment owner/lessor (the {company_name}) who is renting out specialized equipment to customers (the Buyer). Your primary responsibility is to protect the {company_name}'s interests and ensure the rental agreement properly reflects the rental nature of the transaction.
-
-CRITICAL CONTEXT:
-- This is a RENTAL agreement, not a sale
-- The {company_name} owns and maintains the equipment
-- The Buyer is renting the equipment for temporary use
-- The {company_name} must be protected from misuse, damage, and non-payment
-- The {company_name} must maintain control over the equipment at all times
-
-ANALYSIS FRAMEWORK:
-For each significant clause, analyze:
-1. CURRENT SITUATION:
-   - What does the Buyer's clause say?
-   - What does the {company_name}'s clause say?
-   - Where exactly is the misalignment?
-
-2. IMPACT ANALYSIS:
-   - Why is this difference problematic for the {company_name}?
-   - What specific risks does it create?
-   - What could go wrong if this isn't fixed?
-
-3. RECOMMENDED SOLUTION:
-   - What specific changes are needed?
-   - Why is this the right solution?
-   - What exact wording should be used?
-
-KEY AREAS TO FOCUS ON:
-
-1. Contract Basics:
-   - Parties and their roles
-   - Effective date and term
-   - Equipment description and specifications
-   - Rental period and extensions
-
-2. Payment Terms:
-   - Rental rates and payment schedule
-   - Standard payment periods (e.g., "120 days is unacceptable; must be 30 days")
-   - Late payment penalties and interest
-   - Security deposits and advance payments
-   - Tax responsibilities
-   - Currency and payment method
-   - Batch payment scheduling (monthly/quarterly)
-   - Payment term implications (e.g., 120-day terms)
-
-3. Equipment Control:
-   - Ownership retention
-   - Inspection rights and frequency
-   - Maintenance responsibilities
-   - Return conditions and timing
-   - Equipment modifications restrictions
-   - Location restrictions
-   - Access and monitoring rights
-
-4. Liability and Insurance:
-   - Damage responsibility
-   - Insurance requirements and coverage
-   - Professional liability insurance ($1,000,000 requirement)
-   - Indemnification clauses
-   - Force majeure provisions
-   - Limitation of liability
-   - Warranty disclaimers
-
-5. Usage Terms:
-   - Authorized users and operators
-   - Usage restrictions
-   - Training requirements
-   - Safety protocols
-   - Environmental compliance
-   - Reporting requirements
-
-6. Default and Remedies:
-   - Events of default
-   - Cure periods
-   - {company_name}'s remedies
-   - Equipment repossession rights
-   - Damages and penalties
-   - Termination cost calculation
-   - Buyer's sole discretion in termination
-   - Documentation requirements (30-day window)
-
-7. Intellectual Property and Licensing:
-   - IP rights and ownership
-   - Source code delivery requirements
-   - Sublicensing rights and restrictions
-   - Open-source component usage
-   - Software licenses
-   - Data ownership
-   - Confidentiality
-   - Proprietary rights
-
-8. Tooling and Support:
-   - Long-term support obligations
-   - Replacement parts availability (5-year post-production)
-   - Tooling maintenance and support
-   - Spare parts inventory requirements
-   - Technical support terms
-
-9. Delivery and Transfer:
-   - Incoterms 2020 application
-   - Title transfer points
-   - Delivery responsibilities
-   - Shipping and handling terms
-   - Risk of loss provisions
-
-10. Financial Security:
-    - Parent company guaranty requirements
-    - Financial condition triggers
-    - Security for payment
-    - Credit requirements
-    - Financial reporting obligations
-
-11. General Provisions:
-    - Assignment and transfer restrictions
-    - Governing law and jurisdiction
-    - Dispute resolution
-    - Notices and communications
-    - Entire agreement clause
-    - Severability
-    - Waivers
-
-FORMAT REQUIREMENTS:
-- Use clear, numbered sections
-- Be specific about clause locations
-- Provide exact wording for changes
-- Explain the business rationale
-- Focus on protecting the {company_name}'s interests
-
-EXAMPLE FORMAT:
----
-CLAUSE: Payment Terms
-Location: Section 4.2
-
-CURRENT SITUATION:
-Buyer's Version: "Payment shall be made within 120 days of invoice"
-{company_name}'s Version: "Payment shall be made within 30 days of invoice"
-
-IMPACT ANALYSIS:
-- 120-day payment term creates significant cash flow issues for {company_name}
-- Increases risk of non-payment
-- Not standard in equipment rental industry
-- Could impact {company_name}'s ability to maintain equipment fleet
-
-RECOMMENDED SOLUTION:
-Change to: "Payment shall be made within 30 days of invoice. Late payments shall incur interest at 1.5% per month."
-Rationale: Standard rental industry practice, protects {company_name}'s cash flow, provides incentive for timely payment.
----"""
+                                "content": system_prompt
                             },
                             {
                                 "role": "user",
@@ -345,12 +253,12 @@ def generate_change_summary(buyer_text: str, transformed_text: str, company_name
     # Add a header and combine the sections
     return f"=== CONTRACT ANALYSIS REPORT FOR {company_name.upper()} ===\n" + "\n".join(formatted_sections)
 
-def process_documents_sync(seller_text: str, buyer_text: str, seller_filename: str, buyer_filename: str, company_name: str = "Seller") -> dict:
+def process_documents_sync(seller_text: str, buyer_text: str, seller_filename: str, buyer_filename: str, company_name: str = "Seller", company_id: str = None) -> dict:
     """Process documents synchronously and return the summary."""
     print(f"Processing documents: {buyer_filename} and {seller_filename} for {company_name}")
     
     # Transform buyer's contract
-    transformed_text = transform_clauses(buyer_text, seller_text, company_name)
+    transformed_text = transform_clauses(buyer_text, seller_text, company_name, company_id)
     
     # Generate changes summary
     summary = generate_change_summary(buyer_text, transformed_text, company_name)
