@@ -32,5 +32,6 @@ yarn-error.log*
 
 .next/
 .venv/
-SaaS/.next/
+SaaS/.next*
 .vercel/
+SaaS/.next/*

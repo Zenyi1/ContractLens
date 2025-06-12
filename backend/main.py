@@ -12,15 +12,13 @@ from fastapi import (
     BackgroundTasks,
     Body,
 )
-from fastapi.responses import Response, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from dotenv import load_dotenv
-from process import extract_text, transform_clauses, process_documents_sync
-import base64
+from process import extract_text, process_documents_sync
 import logging
-from datetime import timedelta, datetime
+from datetime import datetime
 import uvicorn
 import requests
 
@@ -43,8 +41,17 @@ logger.info(f"Environment file exists: {os.path.exists(env_path)}")
 logger.info(f"Current working directory: {os.getcwd()}")
 
 # Supabase configuration
-SUPABASE_URL = os.getenv("SUPABASE_URL", "your-supabase-url")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY", "your-supabase-key")
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+# Check if environment variables are set
+if not SUPABASE_URL:
+    logger.error("Supabase URL is not set in environment variables.")
+    raise ValueError("Supabase URL is not set in environment variables.")
+
+if not SUPABASE_KEY:
+    logger.error("Supabase Key is not set in environment variables.")
+    raise ValueError("Supabase Key is not set in environment variables.")
 
 
 # Function to ensure database tables exist
@@ -189,7 +196,7 @@ async def root():
 @app.post("/auth/signup", response_model=schemas.User)
 async def signup(user_data: schemas.UserCreate):
     user = await auth.sign_up_user(
-        user_data.email, user_data.password, user_data.username
+        user_data.email, user_data.password, user_data.username or ""
     )
     return {
         "id": user.id,
@@ -262,7 +269,7 @@ async def toggle_registration(current_user=Depends(auth.get_current_active_user)
 
 
 async def validate_pdf(file: UploadFile):
-    if not file.filename.lower().endswith(".pdf"):
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="File must be a PDF document")
 
     if file.size and file.size > 10 * 1024 * 1024:  # 10MB limit
