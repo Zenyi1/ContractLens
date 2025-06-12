@@ -4,3 +4,4 @@ node_modules
 .mypy_cache
 .venv
 .next
+.env
