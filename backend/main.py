@@ -2,26 +2,17 @@ import os
 import uuid
 import traceback
 from fastapi import (
-    (
     FastAPI,
-   
     File,
-   
     UploadFile,
-   
     HTTPException,
-   
     Request,
-   
     Depends,
-   
     status,
-   
     BackgroundTasks,
-   
     Body,
-),
 )
+
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.security import OAuth2PasswordRequestForm
@@ -140,7 +131,7 @@ origins = [
     "https://contractsentinelfrontend.vercel.app",
     "https://contractsentinelfrontend.vercel.app",
     "https://contractsentinelfrontend-9ndi62x4m-zenyi1s-projects.vercel.app",  # Add your new frontend domain
-    "https://contractsentinelfrontend-i3lx833df-zenyi1s-projects.vercel.app"   # Add your other frontend domain
+    "https://contractsentinelfrontend-i3lx833df-zenyi1s-projects.vercel.app",  # Add your other frontend domain
 ]
 
 app.add_middleware(
@@ -150,11 +141,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],  # This includes Authorization header
 )
-
-
-@app.get("/")
-async def root():
-    return {"message": "ContractLens API is running"}
 
 
 @app.get("/health")
@@ -205,13 +191,13 @@ async def root():
 @app.post("/auth/signup", response_model=schemas.User)
 async def signup(user_data: schemas.UserCreate):
     user = await auth.sign_up_user(
-        user_data.email, user_data.password, user_data.username
+        user_data.email, user_data.password, user_data.username or "default_username"
     )
     return {
-        "id": user.id,
-        "email": user.email,
-        "username": user.user_metadata.get("username"),
-        "created_at": user.created_at,
+        "id": user.id,  # type: ignore
+        "email": user.email,  # type: ignore
+        "username": user.user_metadata.get("username"),  # type: ignore
+        "created_at": user.created_at,  # type: ignore
     }
 
 
@@ -219,11 +205,11 @@ async def signup(user_data: schemas.UserCreate):
 async def login(form_data: schemas.UserLogin):
     auth_response = await auth.sign_in_user(form_data.email, form_data.password)
     return {
-        "access_token": auth_response.session.access_token,
+        "access_token": auth_response.session.access_token,  # type: ignore
         "token_type": "bearer",
-        "refresh_token": auth_response.session.refresh_token,
-        "expires_in": auth_response.session.expires_in,
-        "user": auth_response.user.model_dump(),
+        "refresh_token": auth_response.session.refresh_token,  # type: ignore
+        "expires_in": auth_response.session.expires_in,  # type: ignore
+        "user": auth_response.user.model_dump(),  # type: ignore
     }
 
 
@@ -232,11 +218,11 @@ async def login(form_data: schemas.UserLogin):
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
     auth_response = await auth.sign_in_user(form_data.username, form_data.password)
     return {
-        "access_token": auth_response.session.access_token,
+        "access_token": auth_response.session.access_token,  # type: ignore
         "token_type": "bearer",
-        "refresh_token": auth_response.session.refresh_token,
-        "expires_in": auth_response.session.expires_in,
-        "user": auth_response.user.model_dump(),
+        "refresh_token": auth_response.session.refresh_token,  # type: ignore
+        "expires_in": auth_response.session.expires_in,  # type: ignore
+        "user": auth_response.user.model_dump(),  # type: ignore
     }
 
 
@@ -278,7 +264,7 @@ async def toggle_registration(current_user=Depends(auth.get_current_active_user)
 
 
 async def validate_pdf(file: UploadFile):
-    if not file.filename.lower().endswith(".pdf"):
+    if not file.filename.lower().endswith(".pdf"):  # type: ignore
         raise HTTPException(status_code=400, detail="File must be a PDF document")
 
     if file.size and file.size > 10 * 1024 * 1024:  # 10MB limit
@@ -676,12 +662,12 @@ async def process_documents(
 
         # Process documents using the process module
         result = process_documents_sync(
-            seller_text, 
-            buyer_text, 
-            seller_tc.filename, 
-            buyer_tc.filename, 
+            seller_text,
+            buyer_text,
+            seller_tc.filename,  # type: ignore
+            buyer_tc.filename,  # type: ignore
             company_name,
-            company_id
+            company_id,  # type: ignore
         )
 
         # Return the results (without PDF content)
